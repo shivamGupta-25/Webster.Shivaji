@@ -111,6 +111,19 @@ const getAuthToken = async () => {
     }
 };
 
+// Cached sheets instance
+let sheetsInstance = null;
+const getSheets = async () => {
+    const client = await getAuthToken();
+    if (!sheetsInstance) {
+        sheetsInstance = google.sheets({ version: 'v4', auth: client });
+    } else {
+        // Update auth if needed
+        sheetsInstance.context._options.auth = client;
+    }
+    return sheetsInstance;
+};
+
 const checkDuplicateRegistration = async (sheets, data) => {
     const email = data.email.toLowerCase();
     const phone = data.phone;
@@ -135,10 +148,12 @@ const checkDuplicateRegistration = async (sheets, data) => {
         try {
             registrationCache.reset();
 
+            // Use batch get to improve performance
             const response = await sheets.spreadsheets.values.get({
                 spreadsheetId: GOOGLE_SHEET_ID_WORKSHOP,
                 range: 'Sheet1!B:G', // Only get email and phone columns
                 valueRenderOption: 'UNFORMATTED_VALUE',
+                majorDimension: 'ROWS',
             });
 
             const rows = response.data.values || [];
@@ -193,7 +208,7 @@ const sendConfirmationEmail = async (data) => {
     try {
         const { email, name } = data;
         const { subject, template } = workshopData.emailNotification;
-
+        
         const emailResult = await sendWorkshopConfirmation({
             email,
             name,
@@ -203,14 +218,26 @@ const sendConfirmationEmail = async (data) => {
 
         return emailResult;
     } catch (error) {
-        console.error('Email sending error:', error);
+        console.error('Email sending error:', error.message);
         // Don't fail the registration if email fails
         return { success: false, error: error.message };
     }
 };
 
 export async function POST(req) {
+    // Track request timing for performance monitoring
+    const startTime = Date.now();
+    const requestId = Math.random().toString(36).substring(2, 15);
+    
     try {
+        console.log(`[${requestId}] Workshop registration API called`);
+        
+        // Get retry count from headers if available
+        const retryCount = parseInt(req.headers.get('x-retry-count') || '0');
+        if (retryCount > 0) {
+            console.log(`[${requestId}] Retry attempt ${retryCount}`);
+        }
+        
         // Validate environment variables first
         validateEnvironmentVars();
 
@@ -219,6 +246,7 @@ export async function POST(req) {
         try {
             data = await req.json();
         } catch (error) {
+            console.error(`[${requestId}] Invalid request body:`, error.message);
             return NextResponse.json(
                 { error: 'Invalid request body', type: ERROR_TYPES.INVALID_JSON },
                 { status: 400 }
@@ -238,17 +266,36 @@ export async function POST(req) {
             );
         }
 
-        // Get auth token
-        const client = await getAuthToken();
-        const sheets = google.sheets({ version: 'v4', auth: client });
+        // Get sheets instance (cached)
+        const sheets = await getSheets();
 
         // Check for duplicates
         const duplicateError = await checkDuplicateRegistration(sheets, data);
         if (duplicateError) {
-            return NextResponse.json(
-                { error: duplicateError.message, type: duplicateError.type },
-                { status: 400 }
-            );
+            // Instead of returning an error, create a token and redirect
+            if (duplicateError.type === ERROR_TYPES.DUPLICATE_EMAIL || duplicateError.type === ERROR_TYPES.DUPLICATE_PHONE) {
+                // Create a registration token for the existing user
+                const registrationToken = Buffer.from(data.email).toString('base64');
+                
+                console.log(`[${requestId}] User already registered: ${data.email}`);
+                
+                return NextResponse.json(
+                    { 
+                        success: true,
+                        message: "You are already registered",
+                        alreadyRegistered: true,
+                        registrationToken,
+                        whatsappLink: workshopData.whatsappGroupLink
+                    },
+                    { status: 200 }
+                );
+            } else {
+                // For other types of errors, return the error as before
+                return NextResponse.json(
+                    { error: duplicateError.message, type: duplicateError.type },
+                    { status: 400 }
+                );
+            }
         }
 
         // Prepare row data and save to spreadsheet
@@ -279,6 +326,7 @@ export async function POST(req) {
         registrationCache.add(data.email, data.phone);
 
         // Send confirmation email (don't await to improve response time)
+        console.log(`[${requestId}] Registration successful, sending confirmation email`);
         const emailPromise = sendConfirmationEmail(data);
 
         // Return success response immediately
@@ -287,19 +335,24 @@ export async function POST(req) {
             message: "Registration successful",
             timestamp,
             whatsappLink: workshopData.whatsappGroupLink,
-            registrationToken: Buffer.from(`${data.email}|${Date.now()}`).toString('base64')
+            registrationToken: Buffer.from(data.email).toString('base64')
         };
+        
+        // Log performance metrics
+        const endTime = Date.now();
+        console.log(`[${requestId}] Request completed in ${endTime - startTime}ms`);
 
         // Handle email result without blocking the response
         emailPromise.then(emailResult => {
             if (!emailResult.success) {
-                console.warn('Email notification failed but registration succeeded:', emailResult.error);
+                console.warn(`[${requestId}] Email notification failed but registration succeeded:`, emailResult.error);
             }
         });
 
         return NextResponse.json(response, { status: 200 });
     } catch (error) {
-        console.error('Registration error:', {
+        const endTime = Date.now();
+        console.error(`[${requestId}] Registration error (${endTime - startTime}ms):`, {
             message: error.message,
             type: error.type || ERROR_TYPES.UNKNOWN_ERROR,
             cause: error.cause?.message

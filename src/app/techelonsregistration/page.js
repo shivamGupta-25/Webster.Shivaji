@@ -429,6 +429,28 @@ function RegistrationPageContent() {
         throw new Error(result.error || 'Registration failed');
       }
 
+      // Check if user is already registered
+      if (result.alreadyRegistered) {
+        toast.success(
+          `You are already registered for ${result.eventName || selectedEvent?.name || 'this event'}!`, 
+          { 
+            duration: 3000,
+            icon: '🎉'
+          }
+        );
+        
+        // Redirect with registration token
+        const redirectUrl = `/formsubmitted/techelons?event=${encodeURIComponent(data.event)}&token=${encodeURIComponent(result.registrationToken)}&emailSent=true&alreadyRegistered=true`;
+        console.log("Redirecting already registered user to:", redirectUrl);
+        
+        // Use window.location.href for more reliable redirection
+        setTimeout(() => {
+          console.log("Executing redirect now");
+          window.location.href = redirectUrl;
+        }, 500); // Reduced timeout for faster redirection
+        return;
+      }
+
       toast.success(
         `Registration Successful! Welcome to ${selectedEvent?.name || 'Techelons-25'}`, 
         { 
@@ -441,7 +463,14 @@ function RegistrationPageContent() {
       reset();
       
       // Redirect with registration token
-      router.push(`/formsubmitted/techelons?event=${encodeURIComponent(data.event)}&token=${result.registrationToken}&emailSent=${result.emailSent ? 'true' : 'false'}`);
+      const redirectUrl = `/formsubmitted/techelons?event=${encodeURIComponent(data.event)}&token=${encodeURIComponent(result.registrationToken)}&emailSent=${result.emailSent ? 'true' : 'false'}`;
+      console.log("Redirecting to:", redirectUrl);
+      
+      // Use window.location.href for more reliable redirection
+      setTimeout(() => {
+        console.log("Executing redirect now");
+        window.location.href = redirectUrl;
+      }, 500); // Reduced timeout for faster redirection while still showing toast
     } catch (error) {
       // Show specific error message
       const errorMessage = error.message || 'Registration failed. Please try again.';

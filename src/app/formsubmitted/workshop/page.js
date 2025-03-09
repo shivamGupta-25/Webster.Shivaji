@@ -57,6 +57,7 @@ const RegistrationContent = () => {
     const [isExiting, setIsExiting] = useState(false)
     const [isValid, setIsValid] = useState(false)
     const [isLoading, setIsLoading] = useState(true)
+    const [alreadyRegistered, setAlreadyRegistered] = useState(false)
     const router = useRouter()
     const searchParams = useSearchParams()
     const [whatsappLink, setWhatsappLink] = useState("")
@@ -65,6 +66,13 @@ const RegistrationContent = () => {
     // Set WhatsApp link after component mounts to avoid hydration mismatch
     useEffect(() => {
         const token = searchParams.get('token')
+        const alreadyRegisteredParam = searchParams.get('alreadyRegistered')
+        console.log('Token received:', token ? 'Token present' : 'No token');
+        console.log('Already registered:', alreadyRegisteredParam);
+        
+        if (alreadyRegisteredParam === 'true') {
+            setAlreadyRegistered(true)
+        }
         
         if (!token) {
             setIsLoading(false)
@@ -75,37 +83,28 @@ const RegistrationContent = () => {
         try {
             // Validate token
             const decodedToken = atob(token)
+            console.log('Token decoded successfully');
+            
             const emailRegex = /^[a-zA-Z0-9][a-zA-Z0-9._%+-]*@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|du\.ac\.in|ipu\.ac\.in|ignou\.ac\.in|jnu\.ac\.in|iitd\.ac\.in|nsut\.ac\.in|dtu\.ac\.in|igdtuw\.ac\.in|aud\.ac\.in|jamiahamdard\.edu|bhu\.ac\.in|bvpindia\.com|mait\.ac\.in|ip\.edu|msit\.in|gbpuat\.ac\.in)$/
             
-            // Check if token contains timestamp
+            // Extract email from token (handle both formats)
+            let email = decodedToken;
+            
+            // If token has the old format (email|timestamp), extract just the email
             if (decodedToken.includes('|')) {
-                const [email, timestamp] = decodedToken.split('|')
-                const tokenTime = parseInt(timestamp, 10)
-                const currentTime = Date.now()
-                
-                // Token expires after 24 hours
-                if (isNaN(tokenTime) || currentTime - tokenTime > 24 * 60 * 60 * 1000) {
-                    setIsValid(false)
-                    setIsLoading(false)
-                    return
-                }
-                
-                if (emailRegex.test(email)) {
-                    setIsValid(true)
-                    setWhatsappLink(workshopData.whatsappGroupLink)
-                    triggerConfetti()
-                } else {
-                    setIsValid(false)
-                }
+                console.log('Legacy token format: email|timestamp');
+                email = decodedToken.split('|')[0];
+            }
+            
+            // Validate the email
+            if (emailRegex.test(email)) {
+                console.log('Email validation passed');
+                setIsValid(true)
+                setWhatsappLink(workshopData.whatsappGroupLink)
+                triggerConfetti()
             } else {
-                // Legacy token format (just email)
-                if (emailRegex.test(decodedToken)) {
-                    setIsValid(true)
-                    setWhatsappLink(workshopData.whatsappGroupLink)
-                    triggerConfetti()
-                } else {
-                    setIsValid(false)
-                }
+                console.log('Email validation failed');
+                setIsValid(false)
             }
         } catch (error) {
             console.error('Token validation error:', error)
@@ -205,14 +204,16 @@ const RegistrationContent = () => {
                                     variants={itemVariants}
                                     className="text-2xl sm:text-2xl md:text-3xl font-bold mb-2 sm:mb-3 md:mb-4 text-gray bg-clip-text text-transparent bg-gradient-to-r from-green-500 to-teal-600"
                                 >
-                                    Registration Successful!
+                                    {alreadyRegistered ? "Already Registered!" : "Registration Successful!"}
                                 </motion.h1>
 
                                 <motion.p
                                     variants={itemVariants}
-                                    className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-5 md:mb-6 px-1"
+                                    className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8"
                                 >
-                                    Thank you for registering for the workshop. We've sent a confirmation email to your inbox with all the details.
+                                    {alreadyRegistered 
+                                        ? "You have already registered for this workshop. Please check your email for the confirmation details and make sure to join our WhatsApp group for updates."
+                                        : "Thank you for registering for the workshop. We've sent a confirmation email to your inbox with all the details."}
                                 </motion.p>
 
                                 <motion.div variants={itemVariants}>

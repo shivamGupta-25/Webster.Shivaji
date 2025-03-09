@@ -300,10 +300,37 @@ export async function POST(req) {
         );
 
         if (isDuplicate) {
-            return NextResponse.json(
-                { error: 'You have already registered for this event' },
-                { status: 400 }
-            );
+            // Get event details for the WhatsApp link
+            const eventDetails = getEventById(formData.get('event'));
+            
+            // Get WhatsApp link for the event
+            let whatsappLink;
+            try {
+                whatsappLink = getWhatsAppGroupLink(formData.get('event'));
+                console.log('WhatsApp link for event:', whatsappLink);
+                
+                // If no specific link found, use default
+                if (!whatsappLink) {
+                    console.log('Using default WhatsApp link');
+                    whatsappLink = "https://chat.whatsapp.com/techelons-general-group";
+                }
+            } catch (whatsappError) {
+                console.error('Error getting WhatsApp link:', whatsappError);
+                // Fallback to default link
+                whatsappLink = "https://chat.whatsapp.com/techelons-general-group";
+            }
+            
+            // Create a registration token for the existing user
+            const registrationToken = Buffer.from(formData.get('email')).toString('base64');
+            
+            return NextResponse.json({
+                success: true,
+                message: "You have already registered for this event",
+                alreadyRegistered: true,
+                eventName: eventDetails?.name,
+                whatsappLink: whatsappLink,
+                registrationToken: registrationToken
+            });
         }
 
         // Upload files and prepare team member data in parallel
@@ -403,12 +430,27 @@ export async function POST(req) {
         // Append data to Google Sheet
         await googleClient.appendToSheet(rowData);
         
+        // Get WhatsApp link for the event
+        let whatsappLink;
+        try {
+            whatsappLink = getWhatsAppGroupLink(formData.get('event'));
+            console.log('WhatsApp link for event:', whatsappLink);
+            
+            // If no specific link found, use default
+            if (!whatsappLink) {
+                console.log('Using default WhatsApp link');
+                whatsappLink = "https://chat.whatsapp.com/techelons-general-group";
+            }
+        } catch (whatsappError) {
+            console.error('Error getting WhatsApp link:', whatsappError);
+            // Fallback to default link
+            whatsappLink = "https://chat.whatsapp.com/techelons-general-group";
+        }
+        
         // Send confirmation email in the background
         let emailResult = { success: false, error: 'Email sending not attempted' };
         
         try {
-            const whatsappLink = getWhatsAppGroupLink(formData.get('event'));
-            
             emailResult = await sendTechelonsConfirmation({
                 to: formData.get('email'),
                 name: formData.get('name'),
@@ -448,13 +490,15 @@ export async function POST(req) {
             };
         }
         
+        // Return success response
         return NextResponse.json({
             success: true,
-            message: 'Registration successful',
+            message: "Registration successful",
+            eventName: eventDetails?.name,
+            whatsappLink: whatsappLink,
             emailSent: emailResult.success,
-            emailError: emailResult.error,
-            emailDetails: emailResult.details,
-            registrationToken: Buffer.from(`${formData.get('email')}|${Date.now()}`).toString('base64')
+            // Use only the email for the token, without timestamp
+            registrationToken: Buffer.from(formData.get('email')).toString('base64')
         });
     } catch (error) {
         console.error('Registration error:', error);

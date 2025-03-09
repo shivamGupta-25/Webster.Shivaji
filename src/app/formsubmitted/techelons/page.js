@@ -1,6 +1,6 @@
 "use client"
 import Link from "next/link"
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, Suspense, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Instagram, Linkedin, Home, Check, Calendar, Clock, MapPin, Users, Award, Info, ArrowLeft, Share2, Download, Mail, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -95,6 +95,7 @@ const TechelonsRegistrationContent = () => {
     const [shareData, setShareData] = useState(null)
     const [canShare, setCanShare] = useState(false)
     const [showShareSuccess, setShowShareSuccess] = useState(false)
+    const hasTriggeredConfetti = useRef(false)
 
     const socialMedia = {
         instagram: "https://www.instagram.com/websters.shivaji/",
@@ -105,6 +106,14 @@ const TechelonsRegistrationContent = () => {
     useEffect(() => {
         const token = searchParams.get('token')
         const eventId = searchParams.get('event')
+        const alreadyRegisteredParam = searchParams.get('alreadyRegistered')
+        console.log('Token received:', token ? 'Token present' : 'No token');
+        console.log('Event ID received:', eventId);
+        console.log('Already registered:', alreadyRegisteredParam);
+        
+        if (alreadyRegisteredParam === 'true') {
+            setAlreadyRegistered(true)
+        }
         
         if (!token || !eventId) {
             setLoading(false)
@@ -113,60 +122,62 @@ const TechelonsRegistrationContent = () => {
         }
         
         try {
-            // Validate token
-            const decodedToken = atob(token)
-            const emailRegex = /^[a-zA-Z0-9][a-zA-Z0-9._%+-]*@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|du\.ac\.in|ipu\.ac\.in|ignou\.ac\.in|jnu\.ac\.in|iitd\.ac\.in|nsut\.ac\.in|dtu\.ac\.in|igdtuw\.ac\.in|aud\.ac\.in|jamiahamdard\.edu|bhu\.ac\.in|bvpindia\.com|mait\.ac\.in|ip\.edu|msit\.in|gbpuat\.ac\.in)$/
+            // Get event details first
+            const eventDetails = getEventById(eventId);
+            console.log('Event details:', eventDetails ? 'Found' : 'Not found');
             
-            let isTokenValid = false
-            
-            // Check if token contains timestamp
-            if (decodedToken.includes('|')) {
-                const [email, timestamp] = decodedToken.split('|')
-                const tokenTime = parseInt(timestamp, 10)
-                const currentTime = Date.now()
-                
-                // Token expires after 24 hours
-                if (isNaN(tokenTime) || currentTime - tokenTime > 24 * 60 * 60 * 1000) {
-                    setIsValid(false)
-                    setLoading(false)
-                    return
-                }
-                
-                isTokenValid = emailRegex.test(email)
-            } else {
-                // Legacy token format (just email)
-                isTokenValid = emailRegex.test(decodedToken)
+            if (!eventDetails) {
+                console.error('Event not found for ID:', eventId);
+                setIsValid(false);
+                setLoading(false);
+                return;
             }
             
-            if (isTokenValid) {
-                // Get event details
-                const event = getEventById(eventId)
-                if (!event) {
-                    setIsValid(false)
-                    setLoading(false)
-                    return
+            // Get WhatsApp link
+            let whatsappGroupLink;
+            try {
+                whatsappGroupLink = getWhatsAppGroupLink(eventId);
+                console.log('WhatsApp link:', whatsappGroupLink ? 'Found' : 'Not found');
+                
+                // If no specific link found, use default
+                if (!whatsappGroupLink) {
+                    console.log('Using default WhatsApp link');
+                    whatsappGroupLink = "https://chat.whatsapp.com/techelons-general-group";
                 }
-                
-                setEventDetails(event)
-                setWhatsappLink(getWhatsAppGroupLink(eventId))
+            } catch (whatsappError) {
+                console.error('Error getting WhatsApp link:', whatsappError);
+                // Fallback to default link
+                whatsappGroupLink = "https://chat.whatsapp.com/techelons-general-group";
+            }
+            
+            // Validate token
+            const decodedToken = atob(token)
+            console.log('Token decoded successfully');
+            
+            const emailRegex = /^[a-zA-Z0-9][a-zA-Z0-9._%+-]*@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|du\.ac\.in|ipu\.ac\.in|ignou\.ac\.in|jnu\.ac\.in|iitd\.ac\.in|nsut\.ac\.in|dtu\.ac\.in|igdtuw\.ac\.in|aud\.ac\.in|jamiahamdard\.edu|bhu\.ac\.in|bvpindia\.com|mait\.ac\.in|ip\.edu|msit\.in|gbpuat\.ac\.in)$/
+            
+            // Extract email from token (handle both formats)
+            let email = decodedToken;
+            let isTokenValid = false;
+            
+            // If token has the old format (email|timestamp), extract just the email
+            if (decodedToken.includes('|')) {
+                email = decodedToken.split('|')[0];
+            }
+            
+            // Validate the email
+            isTokenValid = emailRegex.test(email);
+            
+            if (isTokenValid) {
                 setIsValid(true)
+                setEventDetails(eventDetails)
+                setWhatsappLink(whatsappGroupLink)
                 
-                // Prepare share data
-                const shareTitle = `I registered for ${event.name} at Techelons'25!`
-                const shareText = `Join me at ${event.name} during Techelons'25, the annual tech fest of Shivaji College, University of Delhi.`
-                const shareUrl = `https://websters.shivaji.du.ac.in/techelons`
-                
-                setShareData({
-                    title: shareTitle,
-                    text: shareText,
-                    url: shareUrl
-                })
-                
-                // Check if Web Share API is available
-                setCanShare(!!navigator.share)
-                
-                // Trigger confetti
-                triggerConfetti()
+                // Only trigger confetti if this is a fresh submission (not a page reload)
+                if (!hasTriggeredConfetti.current) {
+                    triggerConfetti()
+                    hasTriggeredConfetti.current = true
+                }
             } else {
                 setIsValid(false)
             }
@@ -385,14 +396,17 @@ const TechelonsRegistrationContent = () => {
                                     variants={itemVariants}
                                     className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4 text-gray bg-clip-text text-transparent bg-gradient-to-r from-green-500 to-teal-600"
                                 >
-                                    Registration Successful!
+                                    {alreadyRegistered ? "Already Registered!" : "Registration Successful!"}
                                 </motion.h1>
 
                                 <motion.p
                                     variants={itemVariants}
                                     className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8 px-2"
                                 >
-                                    Thank you for registering for Techelons. We've sent a confirmation email to your inbox with all the details.
+                                    {alreadyRegistered 
+                                        ? "You have already registered for Techelons. Please check your email for the confirmation details and make sure to join our WhatsApp group for updates."
+                                        : "Thank you for registering for Techelons. We've sent a confirmation email to your inbox with all the details."
+                                    }
                                 </motion.p>
 
                                 <motion.div variants={itemVariants} className="mb-8">

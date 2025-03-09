@@ -1,17 +1,29 @@
 import nodemailer from 'nodemailer';
 
+// Cache the transporter to avoid creating a new one for each email
+let cachedTransporter = null;
+let transporterCreatedAt = 0;
+const TRANSPORTER_TTL = 30 * 60 * 1000; // 30 minutes
+
 // Create a transporter with environment variables
 const createTransporter = () => {
+    // Check if we have a valid cached transporter
+    const now = Date.now();
+    if (cachedTransporter && now - transporterCreatedAt < TRANSPORTER_TTL) {
+        return cachedTransporter;
+    }
+    
     // Check for required environment variables
     const user = process.env.EMAIL_USER;
     const password = process.env.EMAIL_PASSWORD;
     
     if (!user || !password) {
+        console.error('Missing email credentials. EMAIL_USER or EMAIL_PASSWORD not set in environment variables.');
         throw new Error('Missing email credentials. Please check your environment variables.');
     }
     
     // For production, use environment variables
-    return nodemailer.createTransport({
+    cachedTransporter = nodemailer.createTransport({
         host: process.env.EMAIL_HOST || 'smtp.gmail.com',
         port: parseInt(process.env.EMAIL_PORT || '587'),
         secure: process.env.EMAIL_SECURE === 'true',
@@ -19,7 +31,17 @@ const createTransporter = () => {
             user,
             pass: password,
         },
+        // Add connection pool settings
+        pool: true,
+        maxConnections: 5,
+        maxMessages: 100,
+        // Add timeout settings
+        connectionTimeout: 10000, // 10 seconds
+        socketTimeout: 20000, // 20 seconds
     });
+    
+    transporterCreatedAt = now;
+    return cachedTransporter;
 };
 
 /**
@@ -50,18 +72,32 @@ export const sendEmail = async ({ to, subject, html, text }) => {
             subject,
             html,
             text: text || html.replace(/<[^>]*>/g, ''), // Strip HTML tags for plain text version if not provided
+            // Add priority and importance headers
+            priority: 'high',
+            headers: {
+                'X-Priority': '1',
+                'X-MSMail-Priority': 'High',
+                'Importance': 'high'
+            }
         };
 
-        const info = await transporter.sendMail(mailOptions);
-        console.log('Email sent successfully:', info.messageId);
+        // Set a timeout for the email sending operation
+        const emailPromise = transporter.sendMail(mailOptions);
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Email sending timed out')), 30000) // 30 seconds timeout
+        );
+        
+        // Race the email sending against the timeout
+        const info = await Promise.race([emailPromise, timeoutPromise]);
+        
         return { success: true, messageId: info.messageId };
     } catch (error) {
-        console.error('Error sending email:', error);
+        console.error('Error sending email:', error.message);
+        
         return { 
             success: false, 
             error: error.message,
-            // Don't include stack trace in production
-            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            code: error.code
         };
     }
 };

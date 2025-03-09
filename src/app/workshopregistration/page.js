@@ -135,62 +135,107 @@ export default function RegistrationPage() {
         const toastId = toast.loading("Submitting your registration...");
         
         try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 8000);
+            // Implement retry logic with exponential backoff
+            const maxRetries = 3;
+            let retryCount = 0;
+            let success = false;
             
-            try {
-                // Optimize payload size by removing unnecessary whitespace
-                const payload = {
-                    ...data,
-                    college: "Shivaji College",
-                    email: data.email.trim(),
-                    name: data.name.trim(),
-                    rollNo: data.rollNo.trim(),
-                    course: data.course.trim(),
-                    phone: data.phone.trim(),
-                    query: data.query?.trim() || ""
-                };
-                
-                const response = await fetch('/api/workshopregistration', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                    signal: controller.signal,
-                    // Add cache control to prevent caching of POST requests
-                    cache: 'no-store'
-                });
-
-                clearTimeout(timeoutId);
-                const result = await response.json();
-                
-                if (!response.ok) {
-                    let errorMessage = result.error || ERROR_MESSAGES.DEFAULT;
+            while (retryCount < maxRetries && !success) {
+                try {
+                    // Increase timeout for each retry attempt
+                    const timeout = 8000 + (retryCount * 4000);
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), timeout);
                     
-                    if (errorMessage.includes("already registered with this email")) {
-                        errorMessage = ERROR_MESSAGES.DUPLICATE_EMAIL;
-                    } else if (errorMessage.includes("phone number is already registered")) {
-                        errorMessage = ERROR_MESSAGES.DUPLICATE_PHONE;
+                    // Optimize payload size by removing unnecessary whitespace
+                    const payload = {
+                        ...data,
+                        college: "Shivaji College",
+                        email: data.email.trim(),
+                        name: data.name.trim(),
+                        rollNo: data.rollNo.trim(),
+                        course: data.course.trim(),
+                        phone: data.phone.trim(),
+                        query: data.query?.trim() || ""
+                    };
+                    
+                    // Add retry attempt to headers for server-side logging
+                    const response = await fetch('/api/workshopregistration', {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'X-Retry-Count': retryCount.toString()
+                        },
+                        body: JSON.stringify(payload),
+                        signal: controller.signal,
+                        // Add cache control to prevent caching of POST requests
+                        cache: 'no-store'
+                    });
+
+                    clearTimeout(timeoutId);
+                    const result = await response.json();
+                    
+                    if (!response.ok) {
+                        let errorMessage = result.error || ERROR_MESSAGES.DEFAULT;
+                        
+                        if (errorMessage.includes("already registered with this email")) {
+                            errorMessage = ERROR_MESSAGES.DUPLICATE_EMAIL;
+                        } else if (errorMessage.includes("phone number is already registered")) {
+                            errorMessage = ERROR_MESSAGES.DUPLICATE_PHONE;
+                        }
+                        
+                        setServerError(errorMessage);
+                        toast.error(errorMessage, { id: toastId });
+                        return;
                     }
-                    
-                    setServerError(errorMessage);
-                    toast.error(errorMessage, { id: toastId });
-                    return;
-                }
 
-                // Handle success
-                toast.success("Registration successful! Redirecting...", { id: toastId });
-                reset();
-                
-                // Redirect with the registration token
-                setTimeout(() => router.push(`${workshopData.formSubmittedLink}?token=${result.registrationToken}`), 100);
-            } catch (fetchError) {
-                clearTimeout(timeoutId);
-                const errorMessage = fetchError.name === 'AbortError' 
-                    ? "Request timed out. Server might be busy, please try again." 
-                    : ERROR_MESSAGES.CONNECTION_ERROR;
-                
-                setServerError(errorMessage);
-                toast.error(errorMessage, { id: toastId });
+                    // Check if user is already registered
+                    if (result.alreadyRegistered) {
+                        toast.success("You are already registered! Redirecting...", { id: toastId });
+                        
+                        // Redirect to the form submission page
+                        setTimeout(() => {
+                            const redirectUrl = `${workshopData.formSubmittedLink}?token=${encodeURIComponent(result.registrationToken)}&alreadyRegistered=true`;
+                            window.location.href = redirectUrl;
+                        }, 500);
+                        return;
+                    }
+
+                    // Handle success for new registrations
+                    toast.success("Registration successful! Redirecting...", { id: toastId });
+                    reset();
+                    
+                    // Ensure redirection happens with a slight delay and proper URL
+                    setTimeout(() => {
+                        const redirectUrl = `${workshopData.formSubmittedLink}?token=${encodeURIComponent(result.registrationToken)}`;
+                        window.location.href = redirectUrl;
+                    }, 500);
+                    
+                    success = true;
+                    break;
+                } catch (fetchError) {
+                    if (fetchError.name === 'AbortError') {
+                        // Only retry on timeout errors
+                        retryCount++;
+                        
+                        if (retryCount < maxRetries) {
+                            // Update toast to show retry attempt
+                            toast.loading(`Request timed out. Retrying (${retryCount}/${maxRetries})...`, { id: toastId });
+                            // Add a small delay before retrying
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                        } else {
+                            const errorMessage = "Request timed out after multiple attempts. Please try again later.";
+                            setServerError(errorMessage);
+                            toast.error(errorMessage, { id: toastId });
+                        }
+                    } else {
+                        // For non-timeout errors, don't retry
+                        const errorMessage = ERROR_MESSAGES.CONNECTION_ERROR;
+                        setServerError(errorMessage);
+                        toast.error(errorMessage, { id: toastId });
+                        break;
+                    }
+                }
             }
         } catch (error) {
             console.error("Registration error:", error);
@@ -198,7 +243,7 @@ export default function RegistrationPage() {
         } finally {
             setIsSubmitting(false);
         }
-    }, [isSubmitting, isOnline, reset, router]);
+    }, [isSubmitting, isOnline, reset]);
 
     return (
         <main className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
