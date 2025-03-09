@@ -10,6 +10,29 @@ const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n')
 const GOOGLE_CLIENT_EMAIL = process.env.GOOGLE_CLIENT_EMAIL;
 const GOOGLE_SHEET_ID_WORKSHOP = process.env.GOOGLE_SHEET_ID_WORKSHOP;
 
+// Validate environment variables early
+const validateEnvironmentVars = () => {
+    const missingVars = [];
+    
+    if (!GOOGLE_PRIVATE_KEY || GOOGLE_PRIVATE_KEY === "YOUR_PRIVATE_KEY_HERE") {
+        missingVars.push('GOOGLE_PRIVATE_KEY');
+    }
+    
+    if (!GOOGLE_CLIENT_EMAIL || GOOGLE_CLIENT_EMAIL === "YOUR_CLIENT_EMAIL_HERE") {
+        missingVars.push('GOOGLE_CLIENT_EMAIL');
+    }
+    
+    if (!GOOGLE_SHEET_ID_WORKSHOP) {
+        missingVars.push('GOOGLE_SHEET_ID_WORKSHOP');
+    }
+    
+    if (missingVars.length > 0) {
+        const error = new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+        error.type = ERROR_TYPES.MISSING_CREDENTIALS;
+        throw error;
+    }
+};
+
 // Error types
 const ERROR_TYPES = {
     MISSING_CREDENTIALS: 'MISSING_CREDENTIALS',
@@ -56,12 +79,8 @@ let authClient = null;
 let authClientExpiry = 0;
 
 const getAuthToken = async () => {
-    // Check for required environment variables
-    if (!GOOGLE_CLIENT_EMAIL || !GOOGLE_PRIVATE_KEY) {
-        const error = new Error('Missing Google credentials');
-        error.type = ERROR_TYPES.MISSING_CREDENTIALS;
-        throw error;
-    }
+    // Validate environment variables
+    validateEnvironmentVars();
 
     // Return existing client if still valid (with 5-minute buffer)
     const now = Date.now();
@@ -85,7 +104,7 @@ const getAuthToken = async () => {
         return client;
     } catch (error) {
         console.error('Auth error:', error.message);
-        const authError = new Error('Authentication failed');
+        const authError = new Error('Authentication failed with Google API');
         authError.type = ERROR_TYPES.AUTH_FAILED;
         authError.cause = error;
         throw authError;
@@ -192,13 +211,8 @@ const sendConfirmationEmail = async (data) => {
 
 export async function POST(req) {
     try {
-        // Check for sheet ID
-        if (!GOOGLE_SHEET_ID_WORKSHOP) {
-            throw {
-                message: 'Missing Google Sheet ID',
-                type: ERROR_TYPES.MISSING_SHEET_ID
-            };
-        }
+        // Validate environment variables first
+        validateEnvironmentVars();
 
         // Parse request body
         let data;
@@ -273,7 +287,7 @@ export async function POST(req) {
             message: "Registration successful",
             timestamp,
             whatsappLink: workshopData.whatsappGroupLink,
-            registrationToken: Buffer.from(data.email).toString('base64')
+            registrationToken: Buffer.from(`${data.email}|${Date.now()}`).toString('base64')
         };
 
         // Handle email result without blocking the response

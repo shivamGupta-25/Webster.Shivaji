@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -69,7 +69,20 @@ const baseFormSchema = personSchema.extend({
     teamMembers: z.array(teamMemberSchema).optional()
 });
 
-export default function RegistrationPage() {
+// Loading fallback component
+const LoadingFallback = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="animate-pulse flex flex-col items-center">
+      <div className="w-24 h-24 bg-gray-200 rounded-full mb-6"></div>
+      <div className="h-8 bg-gray-200 rounded w-64 mb-4"></div>
+      <div className="h-4 bg-gray-200 rounded w-80 mb-2"></div>
+      <div className="h-4 bg-gray-200 rounded w-72"></div>
+    </div>
+  </div>
+);
+
+// Main component that uses useSearchParams
+function RegistrationPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -985,5 +998,14 @@ export default function RegistrationPage() {
         </Card>
       </div>
     </main>
+  );
+}
+
+// Wrapper component with Suspense boundary
+export default function RegistrationPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <RegistrationPageContent />
+    </Suspense>
   );
 }

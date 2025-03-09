@@ -13,6 +13,35 @@ const SCOPES = [
 
 const SHEET_RANGE = 'Sheet1!A:Z';
 
+// Validate environment variables
+const validateEnvironmentVars = () => {
+    const missingVars = [];
+    const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+    const GOOGLE_CLIENT_EMAIL = process.env.GOOGLE_CLIENT_EMAIL;
+    const GOOGLE_SHEET_ID_TECHELONS = process.env.GOOGLE_SHEET_ID_TECHELONS;
+    const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
+    
+    if (!GOOGLE_PRIVATE_KEY || GOOGLE_PRIVATE_KEY === "YOUR_PRIVATE_KEY_HERE") {
+        missingVars.push('GOOGLE_PRIVATE_KEY');
+    }
+    
+    if (!GOOGLE_CLIENT_EMAIL || GOOGLE_CLIENT_EMAIL === "YOUR_CLIENT_EMAIL_HERE") {
+        missingVars.push('GOOGLE_CLIENT_EMAIL');
+    }
+    
+    if (!GOOGLE_SHEET_ID_TECHELONS) {
+        missingVars.push('GOOGLE_SHEET_ID_TECHELONS');
+    }
+    
+    if (!GOOGLE_DRIVE_FOLDER_ID) {
+        missingVars.push('GOOGLE_DRIVE_FOLDER_ID');
+    }
+    
+    if (missingVars.length > 0) {
+        throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+    }
+};
+
 // Create a singleton instance of GoogleClient
 let googleClientInstance = null;
 
@@ -35,6 +64,9 @@ class GoogleClient {
     }
 
     async initialize() {
+        // Validate environment variables first
+        validateEnvironmentVars();
+        
         // If already initializing, wait for that promise to resolve
         if (this.initPromise) {
             return this.initPromise;
@@ -422,7 +454,7 @@ export async function POST(req) {
             emailSent: emailResult.success,
             emailError: emailResult.error,
             emailDetails: emailResult.details,
-            registrationToken: Buffer.from(formData.get('email')).toString('base64')
+            registrationToken: Buffer.from(`${formData.get('email')}|${Date.now()}`).toString('base64')
         });
     } catch (error) {
         console.error('Registration error:', error);

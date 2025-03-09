@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useCallback, memo, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog } from '@headlessui/react';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
@@ -90,7 +90,25 @@ const NavLink = memo(({ href, name, onClick, className, isCurrent }) => (
 ));
 NavLink.displayName = 'NavLink';
 
-const Header = ({ children }) => {
+// Loading fallback for the header
+const HeaderFallback = () => (
+    <div className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center py-4">
+                <div className="w-[250px] h-[65px] bg-gray-200 animate-pulse rounded"></div>
+                <div className="hidden md:flex space-x-8">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                        <div key={i} className="h-4 w-20 bg-gray-200 animate-pulse rounded"></div>
+                    ))}
+                </div>
+                <div className="h-10 w-28 bg-gray-200 animate-pulse rounded-full"></div>
+            </div>
+        </div>
+    </div>
+);
+
+// Main component that uses usePathname
+const HeaderContent = ({ children }) => {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const router = useRouter();
     const pathname = usePathname();
@@ -408,4 +426,15 @@ const Header = ({ children }) => {
     );
 };
 
-export default memo(Header);
+// Wrapper component with Suspense boundary
+const Header = memo(({ children }) => {
+    return (
+        <Suspense fallback={<HeaderFallback />}>
+            <HeaderContent children={children} />
+        </Suspense>
+    );
+});
+
+Header.displayName = 'Header';
+
+export default Header;

@@ -15,8 +15,13 @@ const createTransporter = async () => {
   }
 
   // Check if email credentials are configured
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
-    console.warn('Email credentials not configured. Using ethereal.email for testing.');
+  const emailUser = process.env.EMAIL_USER;
+  const emailPassword = process.env.EMAIL_PASSWORD;
+  
+  if (!emailUser || !emailPassword || 
+      emailUser === "YOUR_EMAIL_HERE" || 
+      emailPassword === "YOUR_APP_PASSWORD_HERE") {
+    console.warn('Email credentials not configured or using placeholder values. Using ethereal.email for testing.');
 
     // Create a test account at ethereal.email for development/testing
     try {
@@ -44,8 +49,8 @@ const createTransporter = async () => {
   const transporter = nodemailer.createTransport({
     service: 'gmail',  // Use Gmail service instead of custom host/port
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD, // This should be an app password for Gmail
+      user: emailUser,
+      pass: emailPassword, // This should be an app password for Gmail
     },
     tls: {
       rejectUnauthorized: false // Helps with self-signed certificates
@@ -88,12 +93,21 @@ const createTransporter = async () => {
  * @returns {Promise<Object>} - Nodemailer response
  */
 export const sendEmail = async ({ to, subject, html, text }) => {
+  // Validate inputs
+  if (!to || !subject || !html) {
+    console.error('Missing required email parameters');
+    return { 
+      success: false, 
+      error: 'Missing required email parameters (to, subject, or html)' 
+    };
+  }
+  
   try {
     // Get transporter (may be a Promise if using test account)
     const transporter = await createTransporter();
 
     const mailOptions = {
-      from: process.env.EMAIL_USER
+      from: process.env.EMAIL_USER && process.env.EMAIL_USER !== "YOUR_EMAIL_HERE"
         ? `"Websters - Shivaji College" <${process.env.EMAIL_USER}>`
         : '"Websters - Test" <websters@shivaji.du.ac.in>',
       to,
@@ -141,7 +155,9 @@ export const sendEmail = async ({ to, subject, html, text }) => {
       success: false,
       error: error.message,
       details: errorDetails,
-      code: error.code
+      code: error.code,
+      // Don't include stack trace in production
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     };
   }
 };
