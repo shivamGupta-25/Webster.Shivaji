@@ -1,6 +1,6 @@
 "use client"
 import Link from "next/link"
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Instagram, Linkedin, Home, Check, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -52,7 +52,8 @@ const SocialButton = ({ href, icon, color, hoverColor, label }) => (
     </Link>
 );
 
-const Registration = () => {
+// Create a client component that uses useSearchParams
+const RegistrationContent = () => {
     const [isExiting, setIsExiting] = useState(false)
     const [isValid, setIsValid] = useState(false)
     const [isLoading, setIsLoading] = useState(true)
@@ -309,5 +310,21 @@ const Registration = () => {
         </div>
     )
 }
+
+// Loading fallback component
+const LoadingFallback = () => (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+    </div>
+);
+
+// Main component that wraps the client component with Suspense
+const Registration = () => {
+    return (
+        <Suspense fallback={<LoadingFallback />}>
+            <RegistrationContent />
+        </Suspense>
+    );
+};
 
 export default Registration
