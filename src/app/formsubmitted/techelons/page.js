@@ -173,6 +173,11 @@ const TechelonsRegistrationContent = () => {
                 setEventDetails(eventDetails)
                 setWhatsappLink(whatsappGroupLink)
                 
+                // Set the share URL for the event
+                const baseUrl = window.location.origin
+                const shareEventUrl = `${baseUrl}/techelonsregistration?preselect=${eventId}`
+                setShareUrl(shareEventUrl)
+                
                 // Only trigger confetti if this is a fresh submission (not a page reload)
                 if (!hasTriggeredConfetti.current) {
                     triggerConfetti()
