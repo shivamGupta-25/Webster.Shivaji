@@ -9,7 +9,7 @@
 import { MemoryCache, memoizeWithTTL } from '@/app/_utils/performanceUtils';
 
 // MASTER SWITCH: Set to false to force close all registrations regardless of other settings
-export const REGISTRATION_ENABLED = true;
+export const REGISTRATION_ENABLED = false;
 
 // Techelons Fest Dates - EDIT THESE FOR FUTURE EVENTS
 export const FEST_DATES = {
@@ -254,7 +254,7 @@ export const TECHELONS_EVENTS = [
     date: FEST_DATES.DAY_1,
     time: "02:00 PM",
     duration: "2 hours",
-    registrationStatus: REGISTRATION_STATUS.CLOSED,
+    registrationStatus: REGISTRATION_STATUS.OPEN,
     prizes: [
       { position: "1st", reward: "₹5,000 + Certificate" },
       { position: "2nd", reward: "₹3,000 + Certificate" },
@@ -537,12 +537,12 @@ export const getEventsByStatus = (status) => {
   if (!REGISTRATION_ENABLED && status === REGISTRATION_STATUS.OPEN) {
     return [];
   }
-  
+
   // If master switch is off and we're looking for closed events, return all events
   if (!REGISTRATION_ENABLED && status === REGISTRATION_STATUS.CLOSED) {
     return [...TECHELONS_EVENTS];
   }
-  
+
   // Otherwise, filter by the registration status
   return filterEventsByProperty('registrationStatus', status);
 };
@@ -644,8 +644,13 @@ export const formatEventDateTime = memoizeWithTTL((event) => {
  * @returns {string|null} - The WhatsApp group link or null if not found
  */
 export const getWhatsAppGroupLink = (eventId) => {
-  const event = getEventById(eventId);
-  return event && event.whatsappLink ? event.whatsappLink : null;
+  // First check if there's a direct match in the WHATSAPP_GROUP_LINKS object
+  if (WHATSAPP_GROUP_LINKS[eventId]) {
+    return WHATSAPP_GROUP_LINKS[eventId];
+  }
+
+  // If no direct match, return the default group link
+  return WHATSAPP_GROUP_LINKS.default || null;
 };
 
 /**
@@ -764,12 +769,12 @@ export const getEffectiveRegistrationStatus = memoizeWithTTL((event) => {
   if (!REGISTRATION_ENABLED) {
     return REGISTRATION_STATUS.CLOSED;
   }
-  
+
   // If event is a string (status), return it directly
   if (typeof event === 'string') {
     return event;
   }
-  
+
   // Otherwise, return the event's registration status
   return event?.registrationStatus || REGISTRATION_STATUS.CLOSED;
 }, { ttlMs: 60000 }); // 1 minute TTL

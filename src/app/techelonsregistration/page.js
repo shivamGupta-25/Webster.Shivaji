@@ -12,7 +12,12 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Toaster, toast } from "react-hot-toast";
 import { z } from "zod";
-import { TECHELONS_EVENTS } from "@/app/_data/techelonsEventsData";
+import { 
+  TECHELONS_EVENTS, 
+  REGISTRATION_ENABLED, 
+  REGISTRATION_STATUS, 
+  getEffectiveRegistrationStatus 
+} from "@/app/_data/techelonsEventsData";
 import { validateFile, MAX_FILE_SIZE, ACCEPTED_FILE_TYPES } from "@/app/_utils/fileUtils";
 
 // Constants
@@ -71,6 +76,33 @@ export default function RegistrationPage() {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [teamSize, setTeamSize] = useState(1);
   const [requiredTeamSize, setRequiredTeamSize] = useState({ min: 1, max: 1 });
+  const [invalidPreselectedEvent, setInvalidPreselectedEvent] = useState(null);
+  const [showAnimation, setShowAnimation] = useState(false);
+  
+  // Check if registration is enabled globally
+  useEffect(() => {
+    if (!REGISTRATION_ENABLED) {
+      toast.error('Registration is currently closed', { 
+        duration: 3000,
+        icon: '🚫'
+      });
+      router.push('/registrationclosed');
+    }
+  }, [router]);
+  
+  // Animation control for invalid preselected event
+  useEffect(() => {
+    if (invalidPreselectedEvent) {
+      setShowAnimation(true);
+      
+      // Stop the animation after 3 seconds
+      const timer = setTimeout(() => {
+        setShowAnimation(false);
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [invalidPreselectedEvent]);
   
   // Get preselected event ID from URL if available
   const preselectedEventId = searchParams.get('preselect');
@@ -99,56 +131,125 @@ export default function RegistrationPage() {
   const selectedCollege = watch("college");
   const watchedEvent = watch("event");
 
-  // Initialize selected event state if preselected event is available
-  useEffect(() => {
-    if (preselectedEvent && !selectedEvent) {
-      setSelectedEvent(preselectedEvent);
-      setRequiredTeamSize(preselectedEvent.teamSize);
-      setTeamSize(Math.max(1, preselectedEvent.teamSize.min - 1));
-    }
-  }, [preselectedEvent, selectedEvent]);
-
-  // Handle preselection from URL parameter - combined with the above effect
+  // Handle preselection from URL parameter
   useEffect(() => {
     const preselectedEventId = searchParams.get('preselect');
-    if (preselectedEventId) {
-      // Check if the event exists
-      const event = TECHELONS_EVENTS.find(e => e.id === preselectedEventId);
-      if (event) {
-        // Set the form value with all necessary options to trigger validation and updates
-        setValue("event", preselectedEventId, { 
+    
+    // Skip if no preselect parameter or if we already have a selected event
+    // This prevents duplicate processing
+    if (!preselectedEventId || selectedEvent) {
+      return;
+    }
+    
+    // Check if the event exists
+    const event = TECHELONS_EVENTS.find(e => e.id === preselectedEventId);
+    if (event) {
+      // Check if the preselected event's registration is open
+      const effectiveStatus = getEffectiveRegistrationStatus(event);
+      if (effectiveStatus !== REGISTRATION_STATUS.OPEN) {
+        setInvalidPreselectedEvent({
+          name: event.name,
+          status: effectiveStatus
+        });
+        
+        // Clear any existing event selection to ensure the placeholder shows
+        setValue("event", "", { 
           shouldValidate: true,
           shouldDirty: true,
           shouldTouch: true
         });
         
-        // Manually update all related state
-        setSelectedEvent(event);
-        setRequiredTeamSize(event.teamSize);
-        setTeamSize(Math.max(1, event.teamSize.min - 1));
-        
-        // Show a toast notification about the preselected event
-        toast.success(
-          `Event preselected: ${event.name}`,
+        // Show toast notification
+        toast.error(
+          `Registration for "${event.name}" is ${effectiveStatus}. Please select another event.`, 
           { 
-            icon: '🎯',
-            duration: 4000,
+            duration: 5000,
+            icon: '🚫',
             style: {
-              borderLeft: '4px solid #3B82F6',
-              padding: '16px',
-              fontWeight: 'bold'
+              borderLeft: '4px solid #EF4444',
+              padding: '16px'
             }
           }
         );
+        
+        return;
       }
+      
+      // Set the form value with all necessary options to trigger validation and updates
+      setValue("event", preselectedEventId, { 
+        shouldValidate: true,
+        shouldDirty: true,
+        shouldTouch: true
+      });
+      
+      // Manually update all related state
+      setSelectedEvent(event);
+      setRequiredTeamSize(event.teamSize);
+      setTeamSize(Math.max(1, event.teamSize.min - 1));
+      
+      // Show a toast notification about the preselected event
+      toast.success(
+        `Event preselected: ${event.name}`,
+        { 
+          icon: '🎯',
+          duration: 4000,
+          style: {
+            borderLeft: '4px solid #3B82F6',
+            padding: '16px',
+            fontWeight: 'bold'
+          }
+        }
+      );
+    } else {
+      setInvalidPreselectedEvent({
+        id: preselectedEventId,
+        status: 'not found'
+      });
+      
+      // Clear any existing event selection to ensure the placeholder shows
+      setValue("event", "", { 
+        shouldValidate: true,
+        shouldDirty: true,
+        shouldTouch: true
+      });
+      
+      // Show toast notification
+      toast.error(
+        `Event "${preselectedEventId}" was not found. Please select an available event.`, 
+        { 
+          duration: 5000,
+          icon: '🔍',
+          style: {
+            borderLeft: '4px solid #EF4444',
+            padding: '16px'
+          }
+        }
+      );
     }
-  }, [searchParams, setValue]);
+  }, [searchParams, setValue, selectedEvent]);
 
   // Optimize event selection effect
   useEffect(() => {
     if (watchedEvent && watchedEvent !== preselectedEventId) {
       const event = TECHELONS_EVENTS.find(e => e.id === watchedEvent);
       if (event) {
+        // Check if the selected event's registration is open
+        const effectiveStatus = getEffectiveRegistrationStatus(event);
+        if (effectiveStatus !== REGISTRATION_STATUS.OPEN) {
+          toast.error(`Registration for ${event.name} is ${effectiveStatus}`, { 
+            duration: 3000,
+            icon: '🚫'
+          });
+          setValue("event", "");
+          setSelectedEvent(null);
+          return;
+        }
+        
+        // Clear any invalid preselected event message
+        if (invalidPreselectedEvent) {
+          setInvalidPreselectedEvent(null);
+        }
+        
         setSelectedEvent(event);
         setRequiredTeamSize(event.teamSize);
         setTeamSize(Math.max(1, event.teamSize.min - 1));
@@ -166,7 +267,7 @@ export default function RegistrationPage() {
         );
       }
     }
-  }, [watchedEvent, preselectedEventId]);
+  }, [watchedEvent, preselectedEventId, setValue, invalidPreselectedEvent]);
 
   const handleRemoveMember = useCallback(() => {
     const newSize = Math.max(requiredTeamSize.min - 1, teamSize - 1);
@@ -256,6 +357,37 @@ export default function RegistrationPage() {
 
   const onSubmit = useCallback(async (data) => {
     try {
+      // Check if there's an invalid preselected event
+      if (invalidPreselectedEvent) {
+        toast.error('Please select a valid event', { 
+          duration: 3000,
+          icon: '🚫'
+        });
+        return;
+      }
+      
+      // Check if global registration is still enabled
+      if (!REGISTRATION_ENABLED) {
+        toast.error('Registration is currently closed', { 
+          duration: 3000,
+          icon: '🚫'
+        });
+        router.push('/registrationclosed');
+        return;
+      }
+      
+      // Check if the selected event's registration is still open
+      if (selectedEvent) {
+        const effectiveStatus = getEffectiveRegistrationStatus(selectedEvent);
+        if (effectiveStatus !== REGISTRATION_STATUS.OPEN) {
+          toast.error(`Registration for ${selectedEvent.name} is now ${effectiveStatus}`, { 
+            duration: 3000,
+            icon: '🚫'
+          });
+          return;
+        }
+      }
+      
       setIsSubmitting(true);
       
       // Validate files before submission
@@ -292,31 +424,6 @@ export default function RegistrationPage() {
         }
       );
       
-      // Show email notification toast based on email sending status
-      if (result.emailSent) {
-        toast.success(
-          'A confirmation email has been sent to your email address', 
-          { 
-            duration: 3000,
-            icon: '📧'
-          }
-        );
-      } else {
-        // Show detailed error message if available
-        const errorMessage = result.emailDetails || result.emailError || 'Email could not be sent';
-        
-        toast(
-          'Registration successful, but we could not send a confirmation email. Please check with the organizers.', 
-          { 
-            duration: 3000,
-            icon: '⚠️'
-          }
-        );
-        
-        // Log the email error for debugging
-        console.error('Email sending failed:', errorMessage);
-      }
-      
       // Reset form
       reset();
       
@@ -340,7 +447,7 @@ export default function RegistrationPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedEvent, validateFiles, prepareFormData, reset, router]);
+  }, [selectedEvent, validateFiles, prepareFormData, reset, router, REGISTRATION_ENABLED, invalidPreselectedEvent]);
 
   // Field validation feedback notifications - memoized
   const showFieldErrorToasts = useCallback(() => {
@@ -386,6 +493,11 @@ export default function RegistrationPage() {
     }
   }, []);
 
+  // Filter events to only show those with open registration
+  const availableEvents = TECHELONS_EVENTS.filter(event => 
+    getEffectiveRegistrationStatus(event) === REGISTRATION_STATUS.OPEN
+  );
+
   return (
     <main className="min-h-screen bg-gray-100 py-6 sm:py-8 md:py-10 lg:py-12 px-4 sm:px-6 lg:px-8">
       <Toaster 
@@ -422,23 +534,64 @@ export default function RegistrationPage() {
           <CardHeader className="space-y-2 px-4 sm:px-6">
             <CardTitle className="text-3xl sm:text-4xl lg:text-5xl font-bold text-center">Techelons-25</CardTitle>
             <CardTitle className="text-xl sm:text-2xl lg:text-3xl font-bold text-center">Registration</CardTitle>
+            {REGISTRATION_ENABLED ? (
+              <p className="text-center text-green-600 font-medium">Registration is currently open</p>
+            ) : (
+              <p className="text-center text-red-600 font-medium">Registration is currently closed</p>
+            )}
           </CardHeader>
           <CardContent className="px-4 sm:px-6">
             <form onSubmit={handleSubmit(onSubmit, showFieldErrorToasts)} className="space-y-4 sm:space-y-6">
               {/* Event Selection */}
               <div className="space-y-1 sm:space-y-2">
                 <Label className="text-sm sm:text-base">Event</Label>
+                {invalidPreselectedEvent && (
+                  <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-md mb-4">
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-amber-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="ml-3">
+                        <p className="text-sm text-amber-700 font-medium">
+                          {invalidPreselectedEvent.status === 'not found' 
+                            ? `The event "${invalidPreselectedEvent.id}" was not found.` 
+                            : `Registration for "${invalidPreselectedEvent.name}" is currently ${invalidPreselectedEvent.status}.`}
+                        </p>
+                        <p className="mt-1 text-xs text-amber-600">
+                          Please select another event from the list below.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <Select 
                   onValueChange={(value) => {
                     setValue("event", value);
+                    // Clear the invalid preselected event message when user selects a new event
+                    if (invalidPreselectedEvent) {
+                      setInvalidPreselectedEvent(null);
+                    }
                   }}
                   value={watchedEvent || ""}
+                  disabled={availableEvents.length === 0}
                 >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select Event" />
+                  <SelectTrigger 
+                    className={`w-full ${invalidPreselectedEvent ? `border-amber-500 ring-1 ring-amber-500 ${showAnimation ? "animate-pulse" : ""}` : ""}`}
+                  >
+                    <SelectValue 
+                      placeholder={
+                        invalidPreselectedEvent 
+                          ? "Please select a different event" 
+                          : availableEvents.length === 0 
+                            ? "No events available" 
+                            : "Select Event"
+                      } 
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    {TECHELONS_EVENTS.map(event => (
+                    {availableEvents.map(event => (
                       <SelectItem key={event.id} value={event.id}>
                         {event.name}
                       </SelectItem>
@@ -447,6 +600,14 @@ export default function RegistrationPage() {
                 </Select>
                 {errors.event && (
                   <p className="text-xs sm:text-sm text-red-600">{errors.event.message}</p>
+                )}
+                {invalidPreselectedEvent && !errors.event && (
+                  <p className="text-xs sm:text-sm text-amber-600 mt-1">
+                    <span className="inline-block mr-1">👆</span> Please select an event from the dropdown above
+                  </p>
+                )}
+                {availableEvents.length === 0 && (
+                  <p className="text-xs sm:text-sm text-amber-600">No events are currently open for registration</p>
                 )}
               </div>
 
@@ -613,6 +774,7 @@ export default function RegistrationPage() {
                   {errors.collegeId && (
                     <p className="text-xs sm:text-sm text-red-600">{errors.collegeId.message}</p>
                   )}
+                  <p className="text-xs text-gray-500">Accepted formats: JPG, JPEG, PNG, PDF. Max size: 5MB</p>
                 </div>
               </div>
 
@@ -749,6 +911,7 @@ export default function RegistrationPage() {
                             {errors.teamMembers?.[index]?.collegeId && (
                               <p className="text-xs sm:text-sm text-red-600">{errors.teamMembers[index].collegeId.message}</p>
                             )}
+                            <p className="text-xs text-gray-500">Accepted formats: JPG, JPEG, PNG, PDF. Max size: 5MB</p>
                           </div>
                         </div>
                       </CardContent>
@@ -774,13 +937,42 @@ export default function RegistrationPage() {
               <Button
                 type="submit"
                 className="w-full py-2 text-sm sm:text-base mt-4"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !REGISTRATION_ENABLED || (selectedEvent && getEffectiveRegistrationStatus(selectedEvent) !== REGISTRATION_STATUS.OPEN) || invalidPreselectedEvent}
                 onClick={(e) => {
+                  if (invalidPreselectedEvent) {
+                    e.preventDefault();
+                    toast.error('Please select a valid event', { 
+                      duration: 3000,
+                      icon: '🎯'
+                    });
+                    return false;
+                  }
+                  
                   if (!watchedEvent) {
                     e.preventDefault(); // Prevent form submission
                     toast.error('Please select an event', { 
                       duration: 3000,
                       icon: '🎯'
+                    });
+                    return false;
+                  }
+                  
+                  // Check if registration is still open
+                  if (!REGISTRATION_ENABLED) {
+                    e.preventDefault();
+                    toast.error('Registration is currently closed', { 
+                      duration: 3000,
+                      icon: '🚫'
+                    });
+                    return false;
+                  }
+                  
+                  // Check if the selected event's registration is still open
+                  if (selectedEvent && getEffectiveRegistrationStatus(selectedEvent) !== REGISTRATION_STATUS.OPEN) {
+                    e.preventDefault();
+                    toast.error(`Registration for ${selectedEvent.name} is ${getEffectiveRegistrationStatus(selectedEvent)}`, { 
+                      duration: 3000,
+                      icon: '🚫'
                     });
                     return false;
                   }
