@@ -110,35 +110,35 @@ const TechelonsRegistrationContent = () => {
         console.log('Token received:', token ? 'Token present' : 'No token');
         console.log('Event ID received:', eventId);
         console.log('Already registered:', alreadyRegisteredParam);
-        
+
         if (alreadyRegisteredParam === 'true') {
             setAlreadyRegistered(true)
         }
-        
+
         if (!token || !eventId) {
             setLoading(false)
             setIsValid(false)
             return
         }
-        
+
         try {
             // Get event details first
             const eventDetails = getEventById(eventId);
             console.log('Event details:', eventDetails ? 'Found' : 'Not found');
-            
+
             if (!eventDetails) {
                 console.error('Event not found for ID:', eventId);
                 setIsValid(false);
                 setLoading(false);
                 return;
             }
-            
+
             // Get WhatsApp link
             let whatsappGroupLink;
             try {
                 whatsappGroupLink = getWhatsAppGroupLink(eventId);
                 console.log('WhatsApp link:', whatsappGroupLink ? 'Found' : 'Not found');
-                
+
                 // If no specific link found, use default
                 if (!whatsappGroupLink) {
                     console.log('Using default WhatsApp link');
@@ -149,35 +149,35 @@ const TechelonsRegistrationContent = () => {
                 // Fallback to default link
                 whatsappGroupLink = "https://chat.whatsapp.com/techelons-general-group";
             }
-            
+
             // Validate token
             const decodedToken = atob(token)
             console.log('Token decoded successfully');
-            
+
             const emailRegex = /^[a-zA-Z0-9][a-zA-Z0-9._%+-]*@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|du\.ac\.in|ipu\.ac\.in|ignou\.ac\.in|jnu\.ac\.in|iitd\.ac\.in|nsut\.ac\.in|dtu\.ac\.in|igdtuw\.ac\.in|aud\.ac\.in|jamiahamdard\.edu|bhu\.ac\.in|bvpindia\.com|mait\.ac\.in|ip\.edu|msit\.in|gbpuat\.ac\.in)$/
-            
+
             // Extract email from token (handle both formats)
             let email = decodedToken;
             let isTokenValid = false;
-            
+
             // If token has the old format (email|timestamp), extract just the email
             if (decodedToken.includes('|')) {
                 email = decodedToken.split('|')[0];
             }
-            
+
             // Validate the email
             isTokenValid = emailRegex.test(email);
-            
+
             if (isTokenValid) {
                 setIsValid(true)
                 setEventDetails(eventDetails)
                 setWhatsappLink(whatsappGroupLink)
-                
+
                 // Set the share URL for the event
                 const baseUrl = window.location.origin
                 const shareEventUrl = `${baseUrl}/techelonsregistration?preselect=${eventId}`
                 setShareUrl(shareEventUrl)
-                
+
                 // Only trigger confetti if this is a fresh submission (not a page reload)
                 if (!hasTriggeredConfetti.current) {
                     triggerConfetti()
@@ -408,7 +408,7 @@ const TechelonsRegistrationContent = () => {
                                     variants={itemVariants}
                                     className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8 px-2"
                                 >
-                                    {alreadyRegistered 
+                                    {alreadyRegistered
                                         ? "You have already registered for Techelons. Please check your email for the confirmation details and make sure to join our WhatsApp group for updates."
                                         : "Thank you for registering for Techelons. We've sent a confirmation email to your inbox with all the details."
                                     }
@@ -509,32 +509,16 @@ const TechelonsRegistrationContent = () => {
                                     </>
                                 )}
 
-                                <motion.div variants={itemVariants} className="flex flex-wrap justify-center gap-3 mb-6">
-                                    <motion.button
-                                        onClick={handleExit}
-                                        variants={buttonVariants}
-                                        whileHover="hover"
-                                        whileTap="tap"
-                                        className="inline-flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium text-sm py-2.5 px-4 rounded-lg transition-all duration-300"
-                                    >
-                                        <ArrowLeft size={16} className="mr-1.5" />
-                                        Back to Home
-                                    </motion.button>
-
-                                    {eventDetails && (
-                                        <motion.button
-                                            onClick={handleShare}
-                                            variants={buttonVariants}
-                                            whileHover="hover"
-                                            whileTap="tap"
-                                            className="inline-flex items-center justify-center bg-primary/10 hover:bg-primary/20 text-primary font-medium text-sm py-2.5 px-4 rounded-lg transition-all duration-300"
-                                            aria-label="Share this event"
-                                        >
-                                            <Share2 size={16} className="mr-1.5" />
-                                            Share Event
-                                        </motion.button>
-                                    )}
-                                </motion.div>
+                                <motion.button
+                                    onClick={() => router.push('/techelons#events')}
+                                    variants={buttonVariants}
+                                    whileHover="hover"
+                                    whileTap="tap"
+                                    className="inline-flex items-center justify-center bg-primary hover:bg-primary/90 text-white font-medium text-sm py-2.5 px-4 mb-4 rounded-lg transition-all duration-300"
+                                >
+                                    <Calendar size={16} className="mr-1.5" />
+                                    Register for another event
+                                </motion.button>
 
                                 <motion.div variants={itemVariants} className="flex justify-center space-x-3 mt-2">
                                     <SocialButton
@@ -561,14 +545,14 @@ const TechelonsRegistrationContent = () => {
                         ) : (
                             <>
                                 <ErrorIcon />
-                                
+
                                 <motion.h1
                                     variants={itemVariants}
                                     className="text-2xl sm:text-2xl md:text-3xl font-bold mb-2 sm:mb-3 md:mb-4 text-gray bg-clip-text text-transparent bg-gradient-to-r from-red-500 to-orange-600"
                                 >
                                     Invalid Access
                                 </motion.h1>
-                                
+
                                 <motion.p
                                     variants={itemVariants}
                                     className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8 px-1"
@@ -578,15 +562,33 @@ const TechelonsRegistrationContent = () => {
                             </>
                         )}
 
-                        <motion.div variants={itemVariants}>
-                            <Button
-                                className="w-full font-medium text-sm sm:text-base py-2 sm:py-3 md:py-4 lg:py-5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-md hover:shadow-lg transition-all duration-300 rounded-lg sm:rounded-xl"
+                        <motion.div variants={itemVariants} className="flex flex-wrap justify-center gap-3 m-6">
+                            <motion.button
                                 onClick={handleExit}
+                                variants={buttonVariants}
+                                whileHover="hover"
+                                whileTap="tap"
+                                className="inline-flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium text-sm py-2.5 px-4 rounded-lg transition-all duration-300"
                             >
-                                <Home className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                                <ArrowLeft size={16} className="mr-1.5" />
                                 Back to Home
-                            </Button>
+                            </motion.button>
+
+                            {eventDetails && (
+                                <motion.button
+                                    onClick={handleShare}
+                                    variants={buttonVariants}
+                                    whileHover="hover"
+                                    whileTap="tap"
+                                    className="inline-flex items-center justify-center bg-primary/10 hover:bg-primary/20 text-primary font-medium text-sm py-2.5 px-4 rounded-lg transition-all duration-300"
+                                    aria-label="Share this event"
+                                >
+                                    <Share2 size={16} className="mr-1.5" />
+                                    Share Event
+                                </motion.button>
+                            )}
                         </motion.div>
+
                     </motion.div>
                 )}
             </AnimatePresence>
