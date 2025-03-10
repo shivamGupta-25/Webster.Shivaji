@@ -1,11 +1,28 @@
 'use client';
 
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { useRouter } from "next/navigation";
 import workshopData from '@/app/_data/workshopData';
+
+// Memoized animation configurations
+const animations = {
+  title: {
+    hidden: { opacity: 0, y: 50 },
+    visible: { 
+      opacity: 1, 
+      y: 0, 
+      transition: { duration: 0.6, ease: [0.25, 0.1, 0.25, 1] } 
+    }
+  },
+  button: {
+    rest: { scale: 1 },
+    hover: { scale: 1.05 },
+    tap: { scale: 0.97 }
+  }
+};
 
 // Optimized DetailItem component
 const DetailItem = memo(({ label, value }) => (
@@ -21,15 +38,16 @@ const Workshop = () => {
   const router = useRouter();
 
   // Memoize workshop details to prevent unnecessary re-renders
-  const { title, shortDescription, details, bannerImage, isRegistrationOpen, formSubmittedLink } = useMemo(() => workshopData, []);
+  const { title, shortDescription, details, bannerImage, isRegistrationOpen } = useMemo(() => workshopData, []);
 
-  const handleRegistration = () => {
+  // Memoize event handler to prevent unnecessary re-renders
+  const handleRegistration = useCallback(() => {
     if (isRegistrationOpen) {
       router.push("/workshopregistration");
     } else {
       router.push("/registrationclosed");
     }
-  };
+  }, [isRegistrationOpen, router]);
 
   return (
     <section
@@ -38,10 +56,10 @@ const Workshop = () => {
     >
       <motion.h1
         className="text-6xl sm:text-8xl lg:text-9xl font-extrabold text-gray-900 dark:text-white mb-8"
-        initial={{ opacity: 0, y: 50 }}
-        whileInView={{ opacity: 1, y: 0 }}
+        initial="hidden"
+        whileInView="visible"
         viewport={{ amount: 0.5 }}
-        transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
+        variants={animations.title}
       >
         Workshop
       </motion.h1>
@@ -55,6 +73,8 @@ const Workshop = () => {
             priority
             className="object-cover"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 1200px"
+            loading="eager"
+            quality={85}
           />
         </div>
 
@@ -83,9 +103,10 @@ const Workshop = () => {
 
           <motion.div
             className="text-center"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.97 }}
-            transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+            initial="rest"
+            whileHover="hover"
+            whileTap="tap"
+            variants={animations.button}
           >
             <Button
               onClick={handleRegistration}

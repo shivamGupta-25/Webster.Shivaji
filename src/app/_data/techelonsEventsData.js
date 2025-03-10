@@ -9,7 +9,7 @@
 import { MemoryCache, memoizeWithTTL } from '@/app/_utils/performanceUtils';
 
 // MASTER SWITCH: Set to false to force close all registrations regardless of other settings
-export const REGISTRATION_ENABLED = true;
+export const REGISTRATION_ENABLED = false;
 
 // Techelons Fest Dates - EDIT THESE FOR FUTURE EVENTS
 export const FEST_DATES = {

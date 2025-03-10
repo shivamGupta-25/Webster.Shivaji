@@ -2,7 +2,7 @@
 const workshopData = {
   title: "From Idea to Interfaces : A UI/UX foundation workshop",
   shortDescription: "Join us for an exciting 2-day workshop on UI/UX Design, organized by the Websters - Computer Science Society of Shivaji College!",
-  isRegistrationOpen: true, // Set to true to open registration
+  isRegistrationOpen: false, // Set to true to open registration
   formSubmittedLink: "/formsubmitted/workshop", // Link to the form submitted page for workshop
   details: [
     { label: '📅 Date:', value: '29th & 30th January, 2025', id: 'date' },

@@ -1,11 +1,31 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, memo, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import { motion, useAnimation } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useInView } from 'react-intersection-observer';
+
+// Memoize animation configurations to prevent recreating on each render
+const animations = {
+  container: {
+    hidden: { opacity: 0, y: 50 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 1.2, ease: [0.33, 1, 0.68, 1] }
+    }
+  },
+  content: {
+    hidden: { opacity: 0, x: -50 },
+    visible: {
+      opacity: 1,
+      x: 0,
+      transition: { duration: 1, ease: [0.33, 1, 0.68, 1] }
+    }
+  }
+};
 
 const Banner = () => {
   const router = useRouter();
@@ -15,13 +35,17 @@ const Banner = () => {
     threshold: 0.2
   });
 
+  // Start animation when component comes into view
   useEffect(() => {
     if (inView) {
       controls.start('visible');
     }
   }, [controls, inView]);
 
-  const easeOutCubic = [0.33, 1, 0.68, 1];
+  // Memoize the router navigation function to prevent recreating on each render
+  const handleTechelonsClick = useMemo(() => () => {
+    router.push('/techelons');
+  }, [router]);
 
   return (
     <section ref={ref} className="container px-8 mx-auto my-4 mb-12">
@@ -29,25 +53,11 @@ const Banner = () => {
         className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center text-center"
         initial="hidden"
         animate={controls}
-        variants={{
-          hidden: { opacity: 0, y: 50 },
-          visible: {
-            opacity: 1,
-            y: 0,
-            transition: { duration: 1.2, ease: easeOutCubic }
-          }
-        }}
+        variants={animations.container}
       >
         <motion.div
           className="flex flex-col items-center justify-center text-center w-full md:pl-10"
-          variants={{
-            hidden: { opacity: 0, x: -50 },
-            visible: {
-              opacity: 1,
-              x: 0,
-              transition: { duration: 1, ease: easeOutCubic }
-            }
-          }}
+          variants={animations.content}
         >
           <h1 className="text-6xl md:text-8xl lg:text-9xl font-bold">Websters</h1>
           <h2 className="text-sm md:text-xl font-normal">
@@ -61,7 +71,7 @@ const Banner = () => {
             strong foundation for its students.
           </p>
           <Button
-            onClick={() => router.push('/techelons')}
+            onClick={handleTechelonsClick}
             className="p-6 rounded-[30px] shadow-lg hover:scale-105 transition-all text-lg font-bold tracking-wide mt-4"
           >
             Techelons - 25
@@ -76,6 +86,8 @@ const Banner = () => {
             height={350}
             priority
             className="drop-shadow-[0px_8px_10px_rgba(0,0,0,0.9)]"
+            loading="eager"
+            sizes="(max-width: 768px) 280px, 350px"
           />
         </div>
       </motion.div>
@@ -83,4 +95,4 @@ const Banner = () => {
   );
 };
 
-export default Banner;
+export default memo(Banner);

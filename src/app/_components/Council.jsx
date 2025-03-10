@@ -8,10 +8,10 @@ import { Autoplay, EffectCoverflow } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/effect-coverflow";
 import "swiper/css/autoplay";
-import { memo, useCallback } from "react";
+import { memo, useCallback, useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 
-// Move data outside component to prevent re-creation on each render
+// Council members data - kept outside component to prevent re-creation
 const councilMembers = [
     {
         name: "Shivani Singh",
@@ -63,8 +63,92 @@ const councilMembers = [
     }
 ];
 
-// Pre-define swiper configuration outside component
-const swiperConfig = {
+// Optimized blur data URL for image placeholders (smaller SVG)
+const BLUR_DATA_URL = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiPjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiNmMWYxZjEiLz48L3N2Zz4=";
+
+// Animation variants - simplified for better performance
+const animations = {
+    title: {
+        hidden: { opacity: 0, y: 20 },
+        visible: { 
+            opacity: 1, 
+            y: 0, 
+            transition: { duration: 0.5 } 
+        }
+    },
+    card: {
+        hidden: { opacity: 0 },
+        visible: { 
+            opacity: 1,
+            transition: { duration: 0.3 } 
+        }
+    }
+};
+
+// LinkedIn button component - memoized
+const LinkedInButton = memo(({ url, name }) => {
+    if (!url) return null;
+    
+    return (
+        <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center text-blue-500 hover:text-blue-700 transition-colors"
+            aria-label={`LinkedIn profile of ${name}`}
+        >
+            <Linkedin className="w-5 h-5" />
+        </a>
+    );
+});
+
+LinkedInButton.displayName = 'LinkedInButton';
+
+// MemberCard component - memoized with proper dependency tracking
+const MemberCard = memo(({ member, index }) => {
+    // Only prioritize loading for the first visible cards
+    const isPriority = index < 2;
+    
+    return (
+        <motion.div
+            variants={animations.card}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.1 }}
+        >
+            <Card className="overflow-hidden bg-white shadow-md hover:shadow-lg transition-shadow duration-200 p-0">
+                <div className="relative w-full h-[380px]">
+                    <Image
+                        src={member.image}
+                        alt={`${member.name} - ${member.role}`}
+                        className="object-cover"
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 25vw"
+                        loading={isPriority ? "eager" : "lazy"}
+                        priority={isPriority}
+                        quality={75}
+                        placeholder="blur"
+                        blurDataURL={BLUR_DATA_URL}
+                    />
+                </div>
+                <CardContent className="p-4 text-center">
+                    <h2 className="text-lg font-bold truncate mb-1">
+                        {member.name}
+                    </h2>
+                    <p className="text-md text-gray-600 mb-2">
+                        {member.role}
+                    </p>
+                    <LinkedInButton url={member.linkedin} name={member.name} />
+                </CardContent>
+            </Card>
+        </motion.div>
+    );
+});
+
+MemberCard.displayName = 'MemberCard';
+
+// Swiper configuration - defined outside component to prevent recreation
+const SWIPER_CONFIG = {
     modules: [Autoplay, EffectCoverflow],
     effect: "coverflow",
     grabCursor: true,
@@ -72,7 +156,7 @@ const swiperConfig = {
     slidesPerView: "auto",
     loop: true,
     coverflowEffect: {
-        rotate: 15,
+        rotate: 10,
         depth: 100,
         modifier: 1,
         slideShadows: false,
@@ -85,71 +169,36 @@ const swiperConfig = {
     breakpoints: {
         320: { slidesPerView: 1, spaceBetween: 12 },
         640: { slidesPerView: 2, spaceBetween: 16 },
-        768: { slidesPerView: 3, spaceBetween: 28 },
-        1024: { slidesPerView: 4, spaceBetween: 28 }
+        768: { slidesPerView: 3, spaceBetween: 24 },
+        1024: { slidesPerView: 4, spaceBetween: 24 }
     }
 };
 
-// Animation variants for better performance
-const titleAnimation = {
-    hidden: { opacity: 0, y: 50 },
-    visible: {
-        opacity: 1,
-        y: 0,
-        transition: { duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }
-    }
-};
-
-// Memoized MemberCard component to prevent unnecessary re-renders
-const MemberCard = memo(({ member }) => (
-    <Card className="overflow-hidden bg-white shadow-md hover:shadow-lg transition-shadow duration-300 p-0">
-        <div className="relative w-full h-[380px]">
-            <Image
-                src={member.image}
-                alt={`${member.name} - ${member.role}`}
-                className="object-cover"
-                width={300}
-                height={380}
-                style={{ width: '100%', height: '100%' }}
-                loading="lazy"
-                sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 33vw"
-                priority={false}
-                quality={85}
-            />
-        </div>
-        <CardContent className="p-4 text-center">
-            <h2 className="text-lg font-bold truncate mb-1">
-                {member.name}
-            </h2>
-            <p className="text-md text-gray-600 mb-3">
-                {member.role}
-            </p>
-            {member.linkedin && (
-                <a
-                    href={member.linkedin}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center text-blue-500 hover:text-blue-700 transition-colors duration-200"
-                    aria-label={`LinkedIn profile of ${member.name}`}
-                >
-                    <Linkedin className="w-6 h-6" />
-                </a>
-            )}
-        </CardContent>
-    </Card>
-));
-
-MemberCard.displayName = 'MemberCard';
+// Skeleton loader component for better UX during loading
+const CouncilSkeleton = () => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        {[...Array(4)].map((_, index) => (
+            <div key={index} className="h-[460px] bg-gray-100 animate-pulse rounded-lg" />
+        ))}
+    </div>
+);
 
 const Council = () => {
+    // Use a ref to track if component is mounted to prevent hydration issues
+    const [isMounted, setIsMounted] = useState(false);
+    
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+    
     // Memoize the slider content to prevent unnecessary re-renders
-    const renderSlides = useCallback(() =>
+    const renderSlides = useMemo(() => 
         councilMembers.map((member, index) => (
-            <SwiperSlide key={index} className="h-auto">
-                <MemberCard member={member} />
+            <SwiperSlide key={member.name} className="h-auto">
+                <MemberCard member={member} index={index} />
             </SwiperSlide>
         )),
-        []);
+    []);
 
     return (
         <section
@@ -158,18 +207,23 @@ const Council = () => {
             aria-labelledby="council-heading"
         >
             <motion.h1
-                className="flex justify-center items-center text-6xl sm:text-8xl lg:text-9xl font-extrabold text-gray-900 dark:text-white mb-8"
-                initial={{ opacity: 0, y: 50 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ amount: 0.5 }}
-                transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
+                id="council-heading"
+                className="text-center text-6xl sm:text-7xl lg:text-9xl font-extrabold text-gray-900 dark:text-white mb-8"
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, amount: 0.3 }}
+                variants={animations.title}
             >
                 Council
             </motion.h1>
 
-            <Swiper {...swiperConfig} className="w-full">
-                {renderSlides()}
-            </Swiper>
+            {!isMounted ? (
+                <CouncilSkeleton />
+            ) : (
+                <Swiper {...SWIPER_CONFIG} className="w-full">
+                    {renderSlides}
+                </Swiper>
+            )}
         </section>
     );
 };
