@@ -39,9 +39,9 @@ const NAV_LINKS = [
 ];
 
 // Constants for performance optimization
-const NAVIGATION_THROTTLE = 100;
-const SCROLL_CHECK_INTERVAL = 100;
-const SCROLL_MAX_ATTEMPTS = 5;
+const NAVIGATION_THROTTLE = 50;
+const SCROLL_CHECK_INTERVAL = 50;
+const SCROLL_MAX_ATTEMPTS = 3;
 
 // CSS classes using Tailwind composition
 const STYLES = {
@@ -81,6 +81,7 @@ const NavLink = memo(({ href, name, onClick, className, isCurrent }) => (
         className={className}
         onClick={(e) => {
             e.preventDefault();
+            // Remove delay for immediate response
             onClick(href);
         }}
         aria-current={isCurrent ? 'page' : undefined}
@@ -114,15 +115,22 @@ const HeaderContent = ({ children }) => {
     const pathname = usePathname();
     const isHomePage = pathname === '/';
 
-    // Scroll to section with element checking
+    // Scroll to section with element checking - optimized for performance
     const scrollToSection = useCallback((sectionId) => {
         if (!sectionId) return false;
 
         const element = document.getElementById(sectionId);
         if (element) {
-            element.scrollIntoView({
-                behavior: 'smooth',
-                block: 'start'
+            // Use a more reliable scrolling method for mobile with optimized performance
+            const yOffset = -80; // Adjust this value based on your header height
+            const y = element.getBoundingClientRect().top + window.scrollY + yOffset;
+            
+            // Use requestAnimationFrame for smoother scrolling
+            requestAnimationFrame(() => {
+                window.scrollTo({
+                    top: y,
+                    behavior: 'smooth'
+                });
             });
             return true;
         }
@@ -130,12 +138,15 @@ const HeaderContent = ({ children }) => {
         return false;
     }, []);
 
-    // Enhanced navigation handler with throttling
+    // Enhanced navigation handler with optimized throttling
     const handleNavigation = useCallback((href) => {
-        // Throttle navigations
+        // Throttle navigations with reduced delay
         const now = Date.now();
         if (now - lastNavigationTime < NAVIGATION_THROTTLE) return;
         lastNavigationTime = now;
+
+        // Close mobile menu first to prevent UI issues
+        setMobileMenuOpen(false);
 
         // Handle hash navigation
         if (href.startsWith('/#')) {
@@ -147,16 +158,15 @@ const HeaderContent = ({ children }) => {
                 sessionStorage.setItem('scrollTarget', sectionId);
                 router.push('/');
             } else {
-                // Already on home page, scroll directly
-                scrollToSection(sectionId);
+                // Already on home page, scroll directly with minimal delay
+                requestAnimationFrame(() => {
+                    scrollToSection(sectionId);
+                });
             }
         } else {
             // Standard navigation
             router.push(href);
         }
-
-        // Close mobile menu
-        setMobileMenuOpen(false);
     }, [router, isHomePage, scrollToSection]);
 
     // Navigation to registration page
@@ -181,7 +191,7 @@ const HeaderContent = ({ children }) => {
         }
     }, [router]);
 
-    // Handle section scrolling on page load
+    // Handle section scrolling on page load - optimized
     useEffect(() => {
         if (!isHomePage) return;
 
@@ -195,7 +205,7 @@ const HeaderContent = ({ children }) => {
         pendingScrollTarget = null;
         sessionStorage.removeItem('scrollTarget');
 
-        // Improved polling mechanism
+        // Improved polling mechanism with better performance
         let attempts = 0;
 
         const attemptScroll = () => {
@@ -206,11 +216,14 @@ const HeaderContent = ({ children }) => {
                 return;
             }
 
-            setTimeout(attemptScroll, SCROLL_CHECK_INTERVAL);
+            // Use requestAnimationFrame for smoother performance
+            requestAnimationFrame(() => {
+                setTimeout(attemptScroll, SCROLL_CHECK_INTERVAL);
+            });
         };
 
-        // Give time for DOM to be ready
-        setTimeout(attemptScroll, 100);
+        // Start scrolling sooner
+        requestAnimationFrame(attemptScroll);
 
     }, [isHomePage, scrollToSection]);
 
@@ -323,6 +336,10 @@ const HeaderContent = ({ children }) => {
                         <button
                             type="button"
                             onClick={() => setMobileMenuOpen(true)}
+                            onTouchEnd={(e) => {
+                                e.preventDefault();
+                                setMobileMenuOpen(true);
+                            }}
                             className={STYLES.menuButton}
                             aria-label="Open menu"
                             aria-expanded={mobileMenuOpen}
@@ -386,6 +403,10 @@ const HeaderContent = ({ children }) => {
                                     <button
                                         type="button"
                                         onClick={() => setMobileMenuOpen(false)}
+                                        onTouchEnd={(e) => {
+                                            e.preventDefault();
+                                            setMobileMenuOpen(false);
+                                        }}
                                         className="p-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200"
                                         aria-label="Close menu"
                                     >
