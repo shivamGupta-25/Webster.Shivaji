@@ -29,16 +29,18 @@ export const validateFile = (file, options = {}) => {
     }
 
     if (file.size > maxSize) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        const maxSizeMB = Math.round(maxSize / (1024 * 1024));
         return {
             success: false,
-            error: `File size exceeds the maximum limit of ${Math.round(maxSize / (1024 * 1024))}MB`
+            error: `File size (${sizeMB}MB) exceeds the maximum limit of ${maxSizeMB}MB. Please resize your file and try again.`
         };
     }
 
     if (!acceptedTypes.includes(file.type)) {
         return {
             success: false,
-            error: `File type not accepted. Allowed types: ${acceptedTypes.join(', ')}`
+            error: `File type "${file.type}" not accepted. Allowed types: ${acceptedTypes.map(type => type.split('/')[1]).join(', ')}`
         };
     }
 

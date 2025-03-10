@@ -420,10 +420,23 @@ function RegistrationPageContent() {
         body: formData,
       });
 
-      const result = await response.json();
-      
       // Dismiss loading toast
       toast.dismiss(loadingToast);
+
+      // Check if response is JSON
+      let result;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        result = await response.json();
+      } else {
+        // Handle non-JSON response (likely a file size error)
+        const text = await response.text();
+        if (text.includes("Request Entity Too Large")) {
+          throw new Error("File size exceeds the server limit. Please upload a smaller file (max 5MB).");
+        } else {
+          throw new Error("Server returned an invalid response. Please try again.");
+        }
+      }
 
       if (!response.ok) {
         throw new Error(result.error || 'Registration failed');
@@ -483,8 +496,16 @@ function RegistrationPageContent() {
       // If the error is related to a specific field, highlight it
       if (errorMessage.toLowerCase().includes('email')) {
         toast('Check your email address and try again', { icon: '📧' });
+      } else if (errorMessage.toLowerCase().includes('file size') || errorMessage.toLowerCase().includes('too large')) {
+        toast('Your ID file is too large. Please resize it to under 5MB and try again.', { 
+          duration: 5000,
+          icon: '📁'
+        });
       } else if (errorMessage.toLowerCase().includes('file') || errorMessage.toLowerCase().includes('id')) {
-        toast('There may be an issue with your uploaded ID', { icon: '📁' });
+        toast('There may be an issue with your uploaded ID. Please check the file format and size.', { 
+          duration: 5000,
+          icon: '📁'
+        });
       }
     } finally {
       setIsSubmitting(false);
@@ -816,7 +837,11 @@ function RegistrationPageContent() {
                   {errors.collegeId && (
                     <p className="text-xs sm:text-sm text-red-600">{errors.collegeId.message}</p>
                   )}
-                  <p className="text-xs text-gray-500">Accepted formats: JPG, JPEG, PNG, PDF. Max size: 5MB</p>
+                  <p className="text-xs text-gray-500">
+                    Accepted formats: JPG, JPEG, PNG, PDF. <span className="font-semibold">Max size: 5MB</span>
+                    <br />
+                    <span className="text-amber-600">⚠️ Files larger than 5MB will be rejected by the server.</span>
+                  </p>
                 </div>
               </div>
 
@@ -953,7 +978,11 @@ function RegistrationPageContent() {
                             {errors.teamMembers?.[index]?.collegeId && (
                               <p className="text-xs sm:text-sm text-red-600">{errors.teamMembers[index].collegeId.message}</p>
                             )}
-                            <p className="text-xs text-gray-500">Accepted formats: JPG, JPEG, PNG, PDF. Max size: 5MB</p>
+                            <p className="text-xs text-gray-500">
+                              Accepted formats: JPG, JPEG, PNG, PDF. <span className="font-semibold">Max size: 5MB</span>
+                              <br />
+                              <span className="text-amber-600">⚠️ Files larger than 5MB will be rejected by the server.</span>
+                            </p>
                           </div>
                         </div>
                       </CardContent>
