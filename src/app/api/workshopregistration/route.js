@@ -209,6 +209,8 @@ const sendConfirmationEmail = async (data) => {
         const { email, name } = data;
         const { subject, template } = workshopData.emailNotification;
         
+        console.log(`Sending workshop confirmation email to ${email}`);
+        
         const emailResult = await sendWorkshopConfirmation({
             email,
             name,
@@ -216,11 +218,21 @@ const sendConfirmationEmail = async (data) => {
             template: template(name)
         });
 
+        if (emailResult.success) {
+            console.log(`Workshop confirmation email sent successfully to ${email} with messageId: ${emailResult.messageId}`);
+        } else {
+            console.error(`Failed to send workshop confirmation email to ${email}:`, emailResult.error);
+        }
+
         return emailResult;
     } catch (error) {
-        console.error('Email sending error:', error.message);
+        console.error('Email sending error:', error.message, error.stack);
         // Don't fail the registration if email fails
-        return { success: false, error: error.message };
+        return { 
+            success: false, 
+            error: error.message,
+            stack: error.stack
+        };
     }
 };
 
@@ -325,29 +337,39 @@ export async function POST(req) {
         // Update cache
         registrationCache.add(data.email, data.phone);
 
-        // Send confirmation email (don't await to improve response time)
+        // Send confirmation email with proper error handling
         console.log(`[${requestId}] Registration successful, sending confirmation email`);
-        const emailPromise = sendConfirmationEmail(data);
+        let emailResult = { success: false, error: 'Email sending not attempted' };
+        
+        try {
+            // Send email and await the result
+            emailResult = await sendConfirmationEmail(data);
+            
+            if (!emailResult.success) {
+                console.warn(`[${requestId}] Email notification failed but registration succeeded:`, emailResult.error);
+            }
+        } catch (emailError) {
+            console.error(`[${requestId}] Unexpected error sending confirmation email:`, emailError);
+            emailResult = { 
+                success: false, 
+                error: emailError.message,
+                stack: emailError.stack
+            };
+        }
 
-        // Return success response immediately
+        // Return success response
         const response = {
             success: true,
             message: "Registration successful",
             timestamp,
             whatsappLink: workshopData.whatsappGroupLink,
-            registrationToken: Buffer.from(data.email).toString('base64')
+            registrationToken: Buffer.from(data.email).toString('base64'),
+            emailSent: emailResult.success
         };
         
         // Log performance metrics
         const endTime = Date.now();
         console.log(`[${requestId}] Request completed in ${endTime - startTime}ms`);
-
-        // Handle email result without blocking the response
-        emailPromise.then(emailResult => {
-            if (!emailResult.success) {
-                console.warn(`[${requestId}] Email notification failed but registration succeeded:`, emailResult.error);
-            }
-        });
 
         return NextResponse.json(response, { status: 200 });
     } catch (error) {

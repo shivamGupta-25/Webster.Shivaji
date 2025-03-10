@@ -6,7 +6,7 @@ let transporterCreatedAt = 0;
 const TRANSPORTER_TTL = 30 * 60 * 1000; // 30 minutes
 
 // Create a transporter with environment variables
-const createTransporter = () => {
+const createTransporter = async () => {
     // Check if we have a valid cached transporter
     const now = Date.now();
     if (cachedTransporter && now - transporterCreatedAt < TRANSPORTER_TTL) {
@@ -17,9 +17,29 @@ const createTransporter = () => {
     const user = process.env.EMAIL_USER;
     const password = process.env.EMAIL_PASSWORD;
     
-    if (!user || !password) {
-        console.error('Missing email credentials. EMAIL_USER or EMAIL_PASSWORD not set in environment variables.');
-        throw new Error('Missing email credentials. Please check your environment variables.');
+    if (!user || !password || user === "YOUR_EMAIL_HERE" || password === "YOUR_APP_PASSWORD_HERE") {
+        console.warn('Email credentials not configured or using placeholder values. Using ethereal.email for testing.');
+
+        // Create a test account at ethereal.email for development/testing
+        try {
+            const testAccount = await nodemailer.createTestAccount();
+            const testTransporter = nodemailer.createTransport({
+                host: 'smtp.ethereal.email',
+                port: 587,
+                secure: false,
+                auth: {
+                    user: testAccount.user,
+                    pass: testAccount.pass,
+                },
+            });
+
+            cachedTransporter = testTransporter;
+            transporterCreatedAt = now;
+            return testTransporter;
+        } catch (error) {
+            console.error('Failed to create test email account:', error);
+            throw error;
+        }
     }
     
     // For production, use environment variables
@@ -64,7 +84,7 @@ export const sendEmail = async ({ to, subject, html, text }) => {
     }
     
     try {
-        const transporter = createTransporter();
+        const transporter = await createTransporter();
 
         const mailOptions = {
             from: `"Websters - Shivaji College" <${process.env.EMAIL_USER}>`,
@@ -90,6 +110,7 @@ export const sendEmail = async ({ to, subject, html, text }) => {
         // Race the email sending against the timeout
         const info = await Promise.race([emailPromise, timeoutPromise]);
         
+        console.log('Email sent successfully:', info.messageId);
         return { success: true, messageId: info.messageId };
     } catch (error) {
         console.error('Error sending email:', error.message);
