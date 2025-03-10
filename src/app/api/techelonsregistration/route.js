@@ -194,6 +194,11 @@ class GoogleClient {
                 throw new Error(validation.error);
             }
             
+            // Check file size explicitly again
+            if (file.size > 5 * 1024 * 1024) { // 5MB limit
+                throw new Error(`File size exceeds the maximum limit of 5MB. Your file is ${(file.size / (1024 * 1024)).toFixed(2)}MB`);
+            }
+            
             // Convert file to buffer
             const buffer = await fileToBuffer(file);
             
@@ -272,7 +277,20 @@ export async function POST(req) {
 
     try {
         await googleClient.initialize();
-        const formData = await req.formData();
+        
+        let formData;
+        try {
+            formData = await req.formData();
+        } catch (formDataError) {
+            console.error('Error parsing form data:', formDataError);
+            return NextResponse.json(
+                { 
+                    error: 'Error processing your request',
+                    details: 'There was an issue with your form data. This might be due to large file uploads exceeding the size limit.'
+                },
+                { status: 400 }
+            );
+        }
 
         // Basic validation
         const requiredFields = ['name', 'email', 'phone', 'rollNo', 'college', 'event', 'year', 'course'];
@@ -351,7 +369,25 @@ export async function POST(req) {
         
         for (const key of teamMemberKeys) {
             const index = key.split('_')[1];
-            const memberData = JSON.parse(formData.get(key));
+            let memberData;
+            
+            try {
+                const rawData = formData.get(key);
+                if (typeof rawData !== 'string') {
+                    console.error(`Invalid team member data for ${key}:`, rawData);
+                    throw new Error('Invalid team member data format');
+                }
+                memberData = JSON.parse(rawData);
+            } catch (error) {
+                console.error(`Error parsing team member data for ${key}:`, error);
+                return NextResponse.json(
+                    { 
+                        error: `There may be an issue with your uploaded ID: ${error.message}`,
+                        details: `Failed to parse team member data. Please try again with a smaller file size.`
+                    },
+                    { status: 400 }
+                );
+            }
             
             // Upload team member's college ID
             const memberCollegeIdFile = formData.get(`teamMember_${index}_collegeId`);
@@ -463,23 +499,30 @@ export async function POST(req) {
             
             // Send emails to team members in the background
             if (teamMembers.length > 0) {
-                Promise.all(
-                    teamMembers.map(member => 
-                        sendTechelonsConfirmation({
-                            to: member.email,
-                            name: member.name,
-                            event: formData.get('event'),
-                            eventDate: eventDetails?.date,
-                            eventTime: eventDetails?.time,
-                            eventVenue: eventDetails?.venue,
-                            whatsappLink,
-                            isTeamMember: true,
-                            teamLeader: formData.get('name')
-                        })
-                    )
-                ).catch(error => {
-                    console.error('Error sending team member emails:', error);
-                });
+                try {
+                    // Properly await the Promise.all to ensure emails are sent before the route completes
+                    await Promise.all(
+                        teamMembers.map(member => 
+                            sendTechelonsConfirmation({
+                                to: member.email,
+                                name: member.name,
+                                event: formData.get('event'),
+                                eventDate: eventDetails?.date,
+                                eventTime: eventDetails?.time,
+                                eventVenue: eventDetails?.venue,
+                                whatsappLink,
+                                isTeamMember: true,
+                                teamLeader: formData.get('name')
+                            })
+                        )
+                    );
+                    console.log(`Successfully sent confirmation emails to ${teamMembers.length} team members`);
+                } catch (teamEmailError) {
+                    console.error('Error sending team member emails:', teamEmailError);
+                    // Don't fail the whole registration if team member emails fail
+                    // But record the error in the response
+                    emailResult.teamMemberEmailsError = teamEmailError.message;
+                }
             }
         } catch (error) {
             console.error('Error sending confirmation email:', error);
