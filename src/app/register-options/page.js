@@ -45,7 +45,7 @@ export default function RegisterOptions() {
 
       <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
         {/* Workshop Registration Card */}
-        <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col h-full">
+        <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col h-full p-0">
           <CardHeader className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-t-lg p-4 sm:p-6">
             <CardTitle className="text-lg sm:text-xl">Workshop Registration</CardTitle>
             <CardDescription className="text-blue-100 text-sm sm:text-base">
@@ -84,7 +84,7 @@ export default function RegisterOptions() {
         </Card>
 
         {/* Techelons Registration Card */}
-        <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col h-full">
+        <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col h-full p-0">
           <CardHeader className="bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-t-lg p-4 sm:p-6">
             <CardTitle className="text-lg sm:text-xl">Techelons Registration</CardTitle>
             <CardDescription className="text-purple-100 text-sm sm:text-base">

@@ -102,7 +102,7 @@ const titleAnimation = {
 
 // Memoized MemberCard component to prevent unnecessary re-renders
 const MemberCard = memo(({ member }) => (
-    <Card className="overflow-hidden bg-white shadow-md hover:shadow-lg transition-shadow duration-300">
+    <Card className="overflow-hidden bg-white shadow-md hover:shadow-lg transition-shadow duration-300 p-0">
         <div className="relative w-full h-[380px]">
             <Image
                 src={member.image}

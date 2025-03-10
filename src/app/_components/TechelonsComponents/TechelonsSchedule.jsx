@@ -4,7 +4,7 @@ import { useMemo, useState, memo, useEffect, useCallback, useRef } from "react"
 import PropTypes from 'prop-types'
 import { ErrorBoundary } from 'react-error-boundary'
 import { createGlobalStyle } from 'styled-components'
-import { ArrowRight, MapPin, Calendar, Filter, Info, User, Search, X } from "lucide-react"
+import { ArrowRight, MapPin, Calendar, Filter, Info, User, Search, X, CalendarDays } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -234,16 +234,20 @@ const useEventCardImage = (imagePath) => {
     const [imageError, setImageError] = useState(false)
     const [imageLoading, setImageLoading] = useState(true)
     const [imageAspectRatio, setImageAspectRatio] = useState(16 / 9) // Default aspect ratio
+    const [imageHeight, setImageHeight] = useState(0)
+    const [imageWidth, setImageWidth] = useState(0)
 
     const handleImageLoad = useCallback((e) => {
         setImageLoading(false)
 
-        // Calculate aspect ratio
+        // Calculate aspect ratio and store dimensions
         const naturalHeight = e.target.naturalHeight;
         const naturalWidth = e.target.naturalWidth;
 
         if (naturalHeight && naturalWidth) {
             setImageAspectRatio(naturalWidth / naturalHeight);
+            setImageHeight(naturalHeight);
+            setImageWidth(naturalWidth);
         }
     }, [])
 
@@ -256,6 +260,8 @@ const useEventCardImage = (imagePath) => {
         imageError,
         imageLoading,
         imageAspectRatio,
+        imageHeight,
+        imageWidth,
         handleImageLoad,
         handleImageError
     }
@@ -267,19 +273,27 @@ const useEventCardImage = (imagePath) => {
 const EventCard = memo(({ event, openEventModal, index }) => {
     const imagePath = useMemo(() => getImagePath(event.image), [event.image])
     const categoryStyle = useMemo(() => getCategoryStyle(event.category), [event.category])
-    const { formattedDate, dayOfWeek } = useMemo(() => formatEventDateTime(event), [event])
+    const { formattedDate, dayOfWeek, formattedTime } = useMemo(() => formatEventDateTime(event), [event])
+    const imageContainerRef = useRef(null)
+    
+    // Get event day (Day 1 or Day 2) from the event object
+    const eventDay = useMemo(() => {
+        return event.festDay === FEST_DAYS.DAY_1 ? "Day 1" : "Day 2"
+    }, [event.festDay])
 
     const {
         imageError,
         imageLoading,
         imageAspectRatio,
+        imageHeight,
+        imageWidth,
         handleImageLoad,
         handleImageError
     } = useEventCardImage(imagePath)
 
     return (
         <Card
-            className="group overflow-hidden h-full border-0 bg-white dark:bg-gray-900 shadow-md rounded-xl relative will-change-transform hover:shadow-lg"
+            className="group overflow-hidden h-full border-0 bg-white dark:bg-gray-900 shadow-md rounded-xl relative will-change-transform hover:shadow-lg p-0"
             style={{
                 animationDelay: `${Math.min(index * 0.03, 0.3)}s`,
                 transform: "translateZ(0)", // Force GPU acceleration
@@ -301,12 +315,14 @@ const EventCard = memo(({ event, openEventModal, index }) => {
             )}
 
             <CardContent className="p-0 h-full flex flex-col">
-                {/* Event Image Container - Responsive to image aspect ratio */}
+                {/* Event Image Container - Adaptive to image dimensions */}
                 <div
+                    ref={imageContainerRef}
                     className="w-full overflow-hidden relative bg-gradient-to-b from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900"
                     style={{
-                        paddingTop: imageLoading ? '56.25%' : `${Math.min((1 / imageAspectRatio) * 100, 75)}%`, // Cap aspect ratio to prevent too tall containers
-                        maxHeight: '16rem', // Set a maximum height to prevent extremely tall images
+                        height: imageLoading ? '0' : 'auto',
+                        minHeight: imageLoading ? '200px' : 'auto',
+                        maxHeight: '16rem', // Maximum height constraint
                     }}
                 >
                     {imageLoading && (
@@ -318,14 +334,14 @@ const EventCard = memo(({ event, openEventModal, index }) => {
                         src={!imageError ? imagePath : DEFAULT_EVENT_IMAGE}
                         alt={event.name}
                         className={cn(
-                            "absolute inset-0 w-full h-full",
-                            imageAspectRatio > 1.5 ? "object-cover" : "object-contain", // Use cover for wide images, contain for others
+                            "w-full h-auto", // Allow image to determine its own height based on aspect ratio
                             imageLoading ? "opacity-0" : "opacity-100 transition-opacity duration-300",
                             "transform transition-transform duration-300 ease-out group-hover:scale-[1.03]"
                         )}
                         style={{
                             transform: "translateZ(0)", // Force GPU acceleration
-                            transformOrigin: "center center"
+                            transformOrigin: "center center",
+                            display: "block", // Remove any default spacing
                         }}
                         onError={handleImageError}
                         onLoad={handleImageLoad}
@@ -334,6 +350,15 @@ const EventCard = memo(({ event, openEventModal, index }) => {
                 </div>
 
                 <div className="p-3 sm:p-4 flex flex-col flex-grow bg-white dark:bg-gray-900 group-hover:bg-gray-50 dark:group-hover:bg-gray-800/80 transition-colors duration-200">
+                                    {/* Event Day - Added here */}
+                    <div className="flex items-center mb-2">
+                        <div className="bg-primary/10 text-primary rounded-full p-1 sm:p-1.5 mr-2">
+                            <CalendarDays className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                        </div>
+                        <div className="flex items-center">
+                            <span className="font-medium text-xs sm:text-sm">{eventDay}</span>
+                        </div>
+                    </div>
                     {/* Date */}
                     <div className="flex items-center mb-2">
                         <div className="bg-primary/10 text-primary rounded-full p-1 sm:p-1.5 mr-2">
@@ -341,7 +366,15 @@ const EventCard = memo(({ event, openEventModal, index }) => {
                         </div>
                         <div className="flex flex-col">
                             <span className="font-medium text-xs sm:text-sm">{formattedDate}</span>
-                            <span className="text-xs text-muted-foreground">{dayOfWeek}</span>
+                            <div className="flex items-center gap-1">
+                                <span className="text-xs text-muted-foreground">{dayOfWeek}</span>
+                                {formattedTime && (
+                                    <>
+                                        <span className="text-xs text-muted-foreground">•</span>
+                                        <span className="text-xs text-muted-foreground">{formattedTime}</span>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
 
