@@ -509,16 +509,18 @@ const TechelonsRegistrationContent = () => {
                                     </>
                                 )}
 
-                                <motion.button
-                                    onClick={() => router.push('/techelons#events')}
-                                    variants={buttonVariants}
-                                    whileHover="hover"
-                                    whileTap="tap"
-                                    className="inline-flex items-center justify-center bg-primary hover:bg-primary/90 text-white font-medium text-sm py-2.5 px-4 mb-4 rounded-lg transition-all duration-300"
-                                >
-                                    <Calendar size={16} className="mr-1.5" />
-                                    Register for another event
-                                </motion.button>
+                                <motion.div variants={itemVariants} className="flex justify-center mb-4">
+                                    <motion.button
+                                        onClick={() => router.push('/techelons#events')}
+                                        variants={buttonVariants}
+                                        whileHover="hover"
+                                        whileTap="tap"
+                                        className="inline-flex items-center justify-center bg-primary hover:bg-primary/90 text-white font-medium text-sm py-2.5 px-4 rounded-lg transition-all duration-300"
+                                    >
+                                        <Calendar size={16} className="mr-1.5" />
+                                        Register for another event
+                                    </motion.button>
+                                </motion.div>
 
                                 <motion.div variants={itemVariants} className="flex justify-center space-x-3 mt-2">
                                     <SocialButton

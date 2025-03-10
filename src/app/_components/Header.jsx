@@ -9,7 +9,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { isRegistrationOpen } from "@/app/_data/techelonsEventsData";
 import workshopData from "@/app/_data/workshopData";
 
-// Simplified animation configurations with smoother transitions
+// Animation configurations
 const animations = {
     fadeIn: {
         hidden: { opacity: 0 },
@@ -122,8 +122,7 @@ const HeaderContent = ({ children }) => {
         const element = document.getElementById(sectionId);
         if (element) {
             // Use a more reliable scrolling method for mobile with optimized performance
-            const yOffset = -80; // Adjust this value based on your header height
-            const y = element.getBoundingClientRect().top + window.scrollY + yOffset;
+            const y = element.getBoundingClientRect().top + window.scrollY;
             
             // Use requestAnimationFrame for smoother scrolling
             requestAnimationFrame(() => {
@@ -140,7 +139,7 @@ const HeaderContent = ({ children }) => {
 
     // Enhanced navigation handler with optimized throttling
     const handleNavigation = useCallback((href) => {
-        // Throttle navigations with reduced delay
+        // Throttle navigations
         const now = Date.now();
         if (now - lastNavigationTime < NAVIGATION_THROTTLE) return;
         lastNavigationTime = now;
@@ -158,7 +157,7 @@ const HeaderContent = ({ children }) => {
                 sessionStorage.setItem('scrollTarget', sectionId);
                 router.push('/');
             } else {
-                // Already on home page, scroll directly with minimal delay
+                // Already on home page, scroll directly
                 requestAnimationFrame(() => {
                     scrollToSection(sectionId);
                 });
@@ -210,9 +209,7 @@ const HeaderContent = ({ children }) => {
 
         const attemptScroll = () => {
             attempts++;
-            const success = scrollToSection(targetId);
-
-            if (success || attempts >= SCROLL_MAX_ATTEMPTS) {
+            if (scrollToSection(targetId) || attempts >= SCROLL_MAX_ATTEMPTS) {
                 return;
             }
 
@@ -230,17 +227,15 @@ const HeaderContent = ({ children }) => {
     // Lock body scroll when mobile menu is open
     useEffect(() => {
         if (mobileMenuOpen) {
-            // Save the current scroll position
             const scrollY = window.scrollY;
-            // Add padding to prevent layout shift
             const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+            
             document.body.style.position = 'fixed';
             document.body.style.top = `-${scrollY}px`;
             document.body.style.width = '100%';
             document.body.style.paddingRight = `${scrollbarWidth}px`;
 
             return () => {
-                // Restore scroll position when menu closes
                 document.body.style.position = '';
                 document.body.style.top = '';
                 document.body.style.width = '';

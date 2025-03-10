@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense, useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef, useState, useCallback } from "react";
 import Header from "../_components/Header";
 import Footer from "../_components/Footer";
 import TechelonsHero from "../_components/TechelonsComponents/TechelonsMain";
 import TechelonsSchedule from "../_components/TechelonsComponents/TechelonsSchedule";
+import ScrollToTopButton from "../_components/ScrollToTopButton";
 import Head from "next/head";
 
 // Loading fallback components
@@ -28,6 +29,32 @@ const ScheduleSkeleton = () => (
 export default function Techelons() {
     // Create a ref for the events section
     const eventsRef = useRef(null);
+    
+    // State for scroll to top button
+    const [showTopButton, setShowTopButton] = useState(false);
+    
+    // Scroll to top function
+    const scrollToTop = useCallback(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, []);
+    
+    // Handle scroll events
+    useEffect(() => {
+        let ticking = false;
+        
+        const handleScroll = () => {
+            if (!ticking) {
+                window.requestAnimationFrame(() => {
+                    setShowTopButton(window.scrollY > 300);
+                    ticking = false;
+                });
+                ticking = true;
+            }
+        };
+        
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
 
     // Handle hash navigation when the page loads
     useEffect(() => {
@@ -87,6 +114,9 @@ export default function Techelons() {
                             <TechelonsSchedule />
                         </Suspense>
                     </section>
+                    
+                    {/* Scroll to top button */}
+                    <ScrollToTopButton visible={showTopButton} onClick={scrollToTop} />
                 </main>
 
                 <Footer />
